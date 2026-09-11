@@ -51,4 +51,11 @@ class ChordManagerTest {
         assertTrue(converted.contains("[G]"))
         assertTrue(converted.contains("[C]"))
     }
+
+    @Test
+    fun testFormatBaseUrl() {
+        assertEquals("http://192.168.1.50:3000", com.example.songbook.data.remote.ServerApiClient.formatBaseUrl("192.168.1.50:3000"))
+        assertEquals("http://192.168.1.50:3000", com.example.songbook.data.remote.ServerApiClient.formatBaseUrl("http://192.168.1.50:3000/"))
+        assertEquals("https://my-songbook.cz", com.example.songbook.data.remote.ServerApiClient.formatBaseUrl("https://my-songbook.cz/"))
+    }
 }

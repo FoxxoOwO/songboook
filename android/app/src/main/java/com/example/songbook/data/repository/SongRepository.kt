@@ -3,6 +3,7 @@ package com.example.songbook.data.repository
 import android.content.Context
 import com.example.songbook.data.model.Playlist
 import com.example.songbook.data.model.Song
+import com.example.songbook.data.remote.ServerApiClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,12 +24,58 @@ class SongRepository(private val context: Context) {
     }
 
     private val dbFile = File(context.filesDir, "songbook_db.json")
+    private val prefs = context.getSharedPreferences("songbook_prefs", Context.MODE_PRIVATE)
+    private val apiClient = ServerApiClient(json)
 
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
     val songs: StateFlow<List<Song>> = _songs.asStateFlow()
 
     private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
     val playlists: StateFlow<List<Playlist>> = _playlists.asStateFlow()
+
+    fun getServerUrl(): String {
+        return prefs.getString("server_url", "http://192.168.1.100:3000") ?: "http://192.168.1.100:3000"
+    }
+
+    fun setServerUrl(url: String) {
+        prefs.edit().putString("server_url", url.trim()).apply()
+    }
+
+    suspend fun testConnection(url: String = getServerUrl()): Result<String> {
+        return apiClient.testConnection(url)
+    }
+
+    suspend fun syncWithServer(url: String = getServerUrl()): Result<Pair<Int, Int>> {
+        val songsResult = apiClient.fetchSongs(url)
+        if (songsResult.isFailure) {
+            return Result.failure(songsResult.exceptionOrNull() ?: Exception("Chyba při stahování písní"))
+        }
+
+        val playlistsResult = apiClient.fetchPlaylists(url)
+        if (playlistsResult.isFailure) {
+            return Result.failure(playlistsResult.exceptionOrNull() ?: Exception("Chyba při stahování playlistů"))
+        }
+
+        val remoteSongs = songsResult.getOrNull() ?: emptyList()
+        val remotePlaylists = playlistsResult.getOrNull() ?: emptyList()
+
+        // Merge songs: keep existing local songs, add or update remote
+        val currentSongsMap = _songs.value.associateBy { it.id }.toMutableMap()
+        for (song in remoteSongs) {
+            currentSongsMap[song.id] = song
+        }
+        _songs.value = currentSongsMap.values.toList()
+
+        // Merge playlists
+        val currentPlaylistsMap = _playlists.value.associateBy { it.id }.toMutableMap()
+        for (pl in remotePlaylists) {
+            currentPlaylistsMap[pl.id] = pl
+        }
+        _playlists.value = currentPlaylistsMap.values.toList()
+
+        saveData()
+        return Result.success(Pair(remoteSongs.size, remotePlaylists.size))
+    }
 
     init {
         loadData()

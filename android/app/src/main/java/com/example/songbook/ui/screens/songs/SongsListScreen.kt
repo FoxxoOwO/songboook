@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import com.example.songbook.ui.components.ServerSettingsDialog
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -70,6 +72,7 @@ fun SongsListScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedTag by remember { mutableStateOf<String?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     val allTags = remember(songs) {
         songs.flatMap { it.tags }.distinct().sorted()
@@ -103,6 +106,12 @@ fun SongsListScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showSettingsDialog = true }) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "Nastavení IP serveru"
+                        )
+                    }
                     IconButton(onClick = onToggleDarkMode) {
                         Icon(
                             if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
@@ -222,6 +231,13 @@ fun SongsListScreen(
                 repository.addSong(newSong)
                 showAddDialog = false
             }
+        )
+    }
+
+    if (showSettingsDialog) {
+        ServerSettingsDialog(
+            repository = repository,
+            onDismiss = { showSettingsDialog = false }
         )
     }
 }
