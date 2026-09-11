@@ -18,8 +18,19 @@ const CHORD_CANDIDATE_REGEX = /^[A-Ga-gHh][#b]?(?:m|min|maj|dim|aug|sus\d?|\d|\+
  */
 export function isChord(token: string): boolean {
   if (!token) return false;
-  const clean = token.replace(/[()]/g, '').trim();
+  const clean = token.replace(/[()[\]]/g, '').trim();
   return CHORD_CANDIDATE_REGEX.test(clean);
+}
+
+/**
+ * Checks if a line is a section header (e.g. [Verse 1], [Chorus], Verse 1:, R:, etc.)
+ */
+export function isSectionHeaderLine(line: string): boolean {
+  const trimmed = line.trim();
+  const clean = trimmed.startsWith('[') && trimmed.endsWith(']')
+    ? trimmed.substring(1, trimmed.length - 1).trim()
+    : trimmed;
+  return /^(?:R:|Ref(?:r[eé]n)?.*|Chorus.*|Verse\s*\d+.*|Sloka\s*\d+.*|Bridge.*|Outro.*|Intro.*|Solo.*|Pre-Chorus.*|\d+\..*)$/i.test(clean);
 }
 
 /**
@@ -28,13 +39,15 @@ export function isChord(token: string): boolean {
 export function isChordLine(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) return false;
+  if (isSectionHeaderLine(trimmed)) return false;
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) return false;
 
   const tokens = trimmed.split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return false;
 
   const chordCount = tokens.filter(isChord).length;
-  // If at least 70% of tokens look like chords, treat as a chord line
-  return chordCount / tokens.length >= 0.7;
+  // If at least 50% of tokens look like chords, treat as a chord line
+  return chordCount / tokens.length >= 0.5;
 }
 
 /**
@@ -47,42 +60,57 @@ export function convertTwoLineToChordPro(text: string): string {
 
   while (i < lines.length) {
     const currentLine = lines[i];
-    const nextLine = i + 1 < lines.length ? lines[i + 1] : null;
 
-    if (isChordLine(currentLine) && nextLine !== null && !isChordLine(nextLine) && nextLine.trim().length > 0) {
-      // Merge chord line and lyric line based on character positions
-      const chordLine = currentLine;
-      const lyricLine = nextLine;
-
-      // Extract chords and their 0-based column indices
-      const chordsWithIndex: { chord: string; index: number }[] = [];
-      const regex = /\S+/g;
-      let match: RegExpExecArray | null;
-      while ((match = regex.exec(chordLine)) !== null) {
-        if (isChord(match[0])) {
-          chordsWithIndex.push({ chord: match[0], index: match.index });
-        }
+    if (isChordLine(currentLine)) {
+      // Look ahead for next non-empty line
+      let nextNonEmptyIdx = i + 1;
+      while (nextNonEmptyIdx < lines.length && lines[nextNonEmptyIdx].trim().length === 0) {
+        nextNonEmptyIdx++;
       }
 
-      // Interleave into lyric line
-      let merged = '';
-      let lastLyricIdx = 0;
+      if (nextNonEmptyIdx < lines.length) {
+        const nextLine = lines[nextNonEmptyIdx];
+        if (
+          !isChordLine(nextLine) &&
+          !isSectionHeaderLine(nextLine) &&
+          !nextLine.trim().startsWith('{')
+        ) {
+          // Extract chords (both unbracketed Am and bracketed [Am]) with their column indices
+          const chordMatches = currentLine.matchAll(/(?:\[([^\]]+)\]|\S+)/g);
+          const chordsWithIndex: { chord: string; index: number }[] = [];
+          for (const match of chordMatches) {
+            const clean = match[0].replace(/[()[\]]/g, '').trim();
+            if (isChord(clean)) {
+              chordsWithIndex.push({ chord: clean, index: match.index ?? 0 });
+            }
+          }
 
-      for (const { chord, index } of chordsWithIndex) {
-        if (index > lastLyricIdx) {
-          merged += lyricLine.slice(lastLyricIdx, index);
-          lastLyricIdx = index;
+          if (chordsWithIndex.length > 0) {
+            let merged = '';
+            let lastLyricIdx = 0;
+
+            for (const { chord, index } of chordsWithIndex) {
+              const targetIndex = Math.min(Math.max(0, index), nextLine.length);
+              if (targetIndex > lastLyricIdx) {
+                merged += nextLine.slice(lastLyricIdx, targetIndex);
+                lastLyricIdx = targetIndex;
+              }
+              merged += `[${chord}]`;
+            }
+            if (lastLyricIdx < nextLine.length) {
+              merged += nextLine.slice(lastLyricIdx);
+            }
+
+            result.push(merged);
+            i = nextNonEmptyIdx + 1;
+            continue;
+          }
         }
-        merged += `[${chord}]`;
       }
-      merged += lyricLine.slice(lastLyricIdx);
-
-      result.push(merged);
-      i += 2; // Skipped both lines
-    } else {
-      result.push(currentLine);
-      i += 1;
     }
+
+    result.push(currentLine);
+    i++;
   }
 
   return result.join('\n');
@@ -127,9 +155,7 @@ export function parseChordProLine(line: string): ChordSegment[] {
  * Parses full song content into structured lines for rendering
  */
 export function parseSongContent(content: string): ParsedLine[] {
-  // If user pasted raw text where chords are on line above lyrics, auto-convert it
-  const isChordPro = /\[[A-Ga-gHh][^\]]*\]/.test(content);
-  const normalized = isChordPro ? content : convertTwoLineToChordPro(content);
+  const normalized = convertTwoLineToChordPro(content);
 
   const lines = normalized.split('\n');
   return lines.map((line) => {
@@ -156,13 +182,14 @@ export function parseSongContent(content: string): ParsedLine[] {
       return { type: 'directive', directiveName: inside, rawText: trimmed };
     }
 
-    // Section headers: R:, Ref:, Chorus:, Verse 1:, 1., [Chorus]
-    const isSectionHeader =
-      /^(?:R:|Ref(?:r[eé]n)?:|Chorus:|Verse\s*\d+:|Sloka\s*\d+:|Bridge:|Outro:|Intro:|\d+\.)/i.test(trimmed);
-    if (isSectionHeader) {
+    // Section headers: [Verse 1], [Chorus], Verse 1:, R:, etc.
+    if (isSectionHeaderLine(trimmed)) {
+      const cleanHeader = trimmed.startsWith('[') && trimmed.endsWith(']')
+        ? trimmed.substring(1, trimmed.length - 1).trim()
+        : trimmed;
       return {
         type: 'section-header',
-        rawText: line,
+        rawText: cleanHeader,
       };
     }
 

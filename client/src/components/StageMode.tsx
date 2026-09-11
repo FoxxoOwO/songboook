@@ -185,8 +185,17 @@ export const StageMode: React.FC<StageModeProps> = ({
             );
           }
 
+          const isLyricOnlyLine = !line.segments?.some((s) => s.chord);
+          const isChordOnlyLine =
+            !!line.segments && line.segments.length > 0 && line.segments.every((s) => !s.lyric.trim());
+
           return (
-            <div key={lineIdx} className="flex flex-wrap items-end min-h-[2.5em] py-0.5">
+            <div
+              key={lineIdx}
+              className={`flex flex-wrap items-end ${
+                isLyricOnlyLine ? 'min-h-[1.5em]' : 'min-h-[2.5em]'
+              } py-0.5`}
+            >
               {line.segments?.map((seg, segIdx) => {
                 const transposedChord = seg.chord
                   ? transposeChord(seg.chord, transpose, false, 'international')
@@ -199,11 +208,13 @@ export const StageMode: React.FC<StageModeProps> = ({
                         <ChordTooltip chord={transposedChord} />
                       </span>
                     ) : (
-                      <span className="h-6 mb-1" />
+                      !isLyricOnlyLine && <span className="h-6 mb-1" />
                     )}
-                    <span className="text-zinc-100 font-medium whitespace-pre">
-                      {seg.lyric || ' '}
-                    </span>
+                    {(!isChordOnlyLine || seg.lyric.trim().length > 0) && (
+                      <span className="text-zinc-100 font-medium whitespace-pre">
+                        {seg.lyric || (isChordOnlyLine ? '' : ' ')}
+                      </span>
+                    )}
                   </div>
                 );
               })}

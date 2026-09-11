@@ -53,6 +53,31 @@ class ChordManagerTest {
     }
 
     @Test
+    fun testSectionHeaderDetection() {
+        assertTrue(ChordManager.isSectionHeaderLine("[Verse 1]"))
+        assertTrue(ChordManager.isSectionHeaderLine("[Chorus]"))
+        assertTrue(ChordManager.isSectionHeaderLine("Chorus:"))
+        assertTrue(ChordManager.isSectionHeaderLine("Bridge"))
+        assertTrue(ChordManager.isSectionHeaderLine("R:"))
+        org.junit.Assert.assertFalse(ChordManager.isChordLine("[Verse 1]"))
+        org.junit.Assert.assertFalse(ChordManager.isChordLine("[Chorus]"))
+    }
+
+    @Test
+    fun testTwoLineConversionWithSectionHeaders() {
+        val twoLine = """
+            [Verse 1]
+            Am               C
+            Few months back, choosing venues
+        """.trimIndent()
+        val converted = ChordManager.convertTwoLineToChordPro(twoLine)
+        assertTrue(converted.contains("[Verse 1]"))
+        assertTrue(converted.contains("[Am]"))
+        assertTrue(converted.contains("[C]"))
+        assertTrue(converted.contains("[Am]Few months back, [C]choosing venues"))
+    }
+
+    @Test
     fun testFormatBaseUrl() {
         assertEquals("http://192.168.1.50:3000", com.example.songbook.data.remote.ServerApiClient.formatBaseUrl("192.168.1.50:3000"))
         assertEquals("http://192.168.1.50:3000", com.example.songbook.data.remote.ServerApiClient.formatBaseUrl("http://192.168.1.50:3000/"))

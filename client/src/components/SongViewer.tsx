@@ -385,8 +385,17 @@ export const SongViewer: React.FC<SongViewerProps> = ({
             );
           }
 
+          const isLyricOnlyLine = !line.segments?.some((s) => s.chord);
+          const isChordOnlyLine =
+            !!line.segments && line.segments.length > 0 && line.segments.every((s) => !s.lyric.trim());
+
           return (
-            <div key={lineIdx} className="flex flex-wrap items-end min-h-[2.4em] py-0.5 leading-none">
+            <div
+              key={lineIdx}
+              className={`flex flex-wrap items-end ${
+                isLyricOnlyLine ? 'min-h-[1.4em]' : 'min-h-[2.4em]'
+              } py-0.5 leading-none`}
+            >
               {line.segments?.map((seg, segIdx) => {
                 const transposedChord = seg.chord
                   ? transposeChord(seg.chord, transposeSemitones, preferFlats, notation)
@@ -404,12 +413,14 @@ export const SongViewer: React.FC<SongViewerProps> = ({
                         />
                       </span>
                     ) : (
-                      <span className="h-5 mb-0.5" />
+                      !isLyricOnlyLine && <span className="h-5 mb-0.5" />
                     )}
 
-                    <span className="text-zinc-900 dark:text-zinc-100 whitespace-pre">
-                      {seg.lyric || ' '}
-                    </span>
+                    {(!isChordOnlyLine || seg.lyric.trim().length > 0) && (
+                      <span className="text-zinc-900 dark:text-zinc-100 whitespace-pre">
+                        {seg.lyric || (isChordOnlyLine ? '' : ' ')}
+                      </span>
+                    )}
                   </div>
                 );
               })}

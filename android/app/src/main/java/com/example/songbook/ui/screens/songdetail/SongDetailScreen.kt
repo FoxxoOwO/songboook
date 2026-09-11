@@ -257,7 +257,7 @@ fun SongDetailScreen(
                 // Song Lyrics & Chords Body
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     parsedLines.forEach { line ->
                         when (line) {
@@ -286,6 +286,9 @@ fun SongDetailScreen(
                                 )
                             }
                             is ParsedLine.ChordLyrics -> {
+                                val hasAnyChords = line.segments.any { !it.chord.isNullOrBlank() }
+                                val hasAnyLyrics = line.segments.any { it.lyric.isNotBlank() }
+
                                 FlowRow(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.Start,
@@ -294,6 +297,8 @@ fun SongDetailScreen(
                                     line.segments.forEach { segment ->
                                         ChordLyricSegmentView(
                                             segment = segment,
+                                            isChordOnlyLine = hasAnyChords && !hasAnyLyrics,
+                                            isLyricOnlyLine = !hasAnyChords && hasAnyLyrics,
                                             onChordClick = { chord -> selectedChordForDetail = chord }
                                         )
                                     }
@@ -433,6 +438,8 @@ fun SongDetailScreen(
 @Composable
 fun ChordLyricSegmentView(
     segment: ChordSegment,
+    isChordOnlyLine: Boolean = false,
+    isLyricOnlyLine: Boolean = false,
     onChordClick: (String) -> Unit
 ) {
     Column(
@@ -458,18 +465,20 @@ fun ChordLyricSegmentView(
                     fontSize = 13.sp
                 )
             }
-        } else {
+        } else if (!isLyricOnlyLine) {
             Spacer(modifier = Modifier.height(18.dp))
         }
 
         // Lyric text below
-        Text(
-            text = segment.lyric.ifEmpty { " " },
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp
-            ),
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        if (!isChordOnlyLine) {
+            Text(
+                text = segment.lyric.ifEmpty { " " },
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 16.sp
+                ),
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
     }
 }

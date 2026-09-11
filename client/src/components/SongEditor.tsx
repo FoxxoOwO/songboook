@@ -410,8 +410,17 @@ export const SongEditor: React.FC<SongEditorProps> = ({
                     </div>
                   );
                 }
+                const isLyricOnlyLine = !line.segments?.some((s) => s.chord);
+                const isChordOnlyLine =
+                  !!line.segments && line.segments.length > 0 && line.segments.every((s) => !s.lyric.trim());
+
                 return (
-                  <div key={lIdx} className="flex flex-wrap items-end min-h-[2.2em] py-0.5">
+                  <div
+                    key={lIdx}
+                    className={`flex flex-wrap items-end ${
+                      isLyricOnlyLine ? 'min-h-[1.4em]' : 'min-h-[2.2em]'
+                    } py-0.5`}
+                  >
                     {line.segments?.map((seg, sIdx) => (
                       <div key={sIdx} className="inline-flex flex-col items-start mr-1 mb-1">
                         {seg.chord ? (
@@ -419,9 +428,13 @@ export const SongEditor: React.FC<SongEditorProps> = ({
                             <ChordTooltip chord={seg.chord} />
                           </span>
                         ) : (
-                          <span className="h-4 mb-0.5" />
+                          !isLyricOnlyLine && <span className="h-4 mb-0.5" />
                         )}
-                        <span className="text-zinc-900 dark:text-zinc-100 whitespace-pre">{seg.lyric || ' '}</span>
+                        {(!isChordOnlyLine || seg.lyric.trim().length > 0) && (
+                          <span className="text-zinc-900 dark:text-zinc-100 whitespace-pre">
+                            {seg.lyric || (isChordOnlyLine ? '' : ' ')}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>

@@ -36,17 +36,32 @@ object ChordManager {
 
     fun isChord(token: String): Boolean {
         if (token.isBlank()) return false
-        val clean = token.replace("(", "").replace(")", "").trim()
+        val clean = token.replace("(", "").replace(")", "").replace("[", "").replace("]", "").trim()
         return CHORD_CANDIDATE_REGEX.matches(clean)
+    }
+
+    fun isSectionHeaderLine(line: String): Boolean {
+        val trimmed = line.trim()
+        val clean = if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+            trimmed.substring(1, trimmed.length - 1).trim()
+        } else {
+            trimmed
+        }
+        return Regex(
+            """^(?:R:|Ref(?:r[eé]n)?.*|Chorus.*|Verse\s*\d+.*|Sloka\s*\d+.*|Bridge.*|Outro.*|Intro.*|Solo.*|Pre-Chorus.*|\d+\..*)$""",
+            RegexOption.IGNORE_CASE
+        ).matches(clean)
     }
 
     fun isChordLine(line: String): Boolean {
         val trimmed = line.trim()
         if (trimmed.isEmpty()) return false
+        if (isSectionHeaderLine(trimmed)) return false
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) return false
         val tokens = trimmed.split(Regex("""\s+""")).filter { it.isNotEmpty() }
         if (tokens.isEmpty()) return false
         val chordCount = tokens.count { isChord(it) }
-        return (chordCount.toDouble() / tokens.size) >= 0.6
+        return (chordCount.toDouble() / tokens.size) >= 0.5
     }
 
     fun transposeNote(note: String, semitones: Int, preferFlats: Boolean = false): String {
@@ -110,43 +125,57 @@ object ChordManager {
 
         while (i < lines.size) {
             val currentLine = lines[i]
-            val nextLine = if (i + 1 < lines.size) lines[i + 1] else null
 
-            if (isChordLine(currentLine) && nextLine != null && !isChordLine(nextLine) && nextLine.isNotBlank()) {
-                val chordMatches = Regex("""\S+""").findAll(currentLine)
-                val chordsWithIndex = chordMatches.filter { isChord(it.value) }
-                    .map { Pair(it.value, it.range.first) }.toList()
+            if (isChordLine(currentLine)) {
+                var nextNonEmptyIdx = i + 1
+                while (nextNonEmptyIdx < lines.size && lines[nextNonEmptyIdx].trim().isEmpty()) {
+                    nextNonEmptyIdx++
+                }
 
-                val merged = StringBuilder()
-                var lastLyricIdx = 0
+                if (nextNonEmptyIdx < lines.size) {
+                    val nextLine = lines[nextNonEmptyIdx]
+                    if (!isChordLine(nextLine) && !isSectionHeaderLine(nextLine) && !nextLine.trim().startsWith("{")) {
+                        val chordMatches = Regex("""(?:\[([^\]]+)\]|\S+)""").findAll(currentLine)
+                        val chordsWithIndex = mutableListOf<Pair<String, Int>>()
+                        for (match in chordMatches) {
+                            val clean = match.value.replace("[", "").replace("]", "").replace("(", "").replace(")", "").trim()
+                            if (isChord(clean)) {
+                                chordsWithIndex.add(Pair(clean, match.range.first))
+                            }
+                        }
 
-                for ((chord, index) in chordsWithIndex) {
-                    if (index > lastLyricIdx && index <= nextLine.length) {
-                        merged.append(nextLine.substring(lastLyricIdx, index))
-                        lastLyricIdx = index
-                    } else if (index > nextLine.length && lastLyricIdx < nextLine.length) {
-                        merged.append(nextLine.substring(lastLyricIdx))
-                        lastLyricIdx = nextLine.length
+                        if (chordsWithIndex.isNotEmpty()) {
+                            val merged = StringBuilder()
+                            var lastLyricIdx = 0
+
+                            for ((chord, index) in chordsWithIndex) {
+                                val targetIndex = index.coerceIn(0, nextLine.length)
+                                if (targetIndex > lastLyricIdx) {
+                                    merged.append(nextLine.substring(lastLyricIdx, targetIndex))
+                                    lastLyricIdx = targetIndex
+                                }
+                                merged.append("[$chord]")
+                            }
+                            if (lastLyricIdx < nextLine.length) {
+                                merged.append(nextLine.substring(lastLyricIdx))
+                            }
+
+                            result.add(merged.toString())
+                            i = nextNonEmptyIdx + 1
+                            continue
+                        }
                     }
-                    merged.append("[$chord]")
                 }
-                if (lastLyricIdx < nextLine.length) {
-                    merged.append(nextLine.substring(lastLyricIdx))
-                }
-
-                result.add(merged.toString())
-                i += 2
-            } else {
-                result.add(currentLine)
-                i += 1
             }
+
+            result.add(currentLine)
+            i++
         }
         return result.joinToString("\n")
     }
 
     fun parseSongContent(content: String, semitones: Int = 0, preferFlats: Boolean = false): List<ParsedLine> {
-        val isChordPro = content.contains(Regex("""\[[A-Ga-gHh][^\]]*\]"""))
-        val normalized = if (isChordPro) content else convertTwoLineToChordPro(content)
+        val normalized = convertTwoLineToChordPro(content)
 
         return normalized.lines().map { line ->
             val trimmed = line.trim()
@@ -163,8 +192,13 @@ object ChordManager {
                         ParsedLine.Directive(inside, "", trimmed)
                     }
                 }
-                Regex("""^(?:R:|Ref(?:r[eé]n)?:|Chorus:|Verse\s*\d+:|Sloka\s*\d+:|Bridge:|Outro:|Intro:|\d+\.)""", RegexOption.IGNORE_CASE).containsMatchIn(trimmed) -> {
-                    ParsedLine.SectionHeader(line)
+                isSectionHeaderLine(trimmed) -> {
+                    val cleanHeader = if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+                        trimmed.substring(1, trimmed.length - 1).trim()
+                    } else {
+                        trimmed
+                    }
+                    ParsedLine.SectionHeader(cleanHeader)
                 }
                 else -> {
                     val segments = parseChordProLine(line, semitones, preferFlats)

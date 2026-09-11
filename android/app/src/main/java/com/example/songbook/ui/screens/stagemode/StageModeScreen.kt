@@ -163,12 +163,19 @@ fun StageModeScreen(
                             )
                         }
                         is ParsedLine.ChordLyrics -> {
+                            val hasAnyChords = line.segments.any { !it.chord.isNullOrBlank() }
+                            val hasAnyLyrics = line.segments.any { it.lyric.isNotBlank() }
+
                             FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.Start
                             ) {
                                 line.segments.forEach { segment ->
-                                    StageChordSegmentView(segment = segment)
+                                    StageChordSegmentView(
+                                        segment = segment,
+                                        isChordOnlyLine = hasAnyChords && !hasAnyLyrics,
+                                        isLyricOnlyLine = !hasAnyChords && hasAnyLyrics
+                                    )
                                 }
                             }
                         }
@@ -246,7 +253,11 @@ fun StageModeScreen(
 }
 
 @Composable
-fun StageChordSegmentView(segment: ChordSegment) {
+fun StageChordSegmentView(
+    segment: ChordSegment,
+    isChordOnlyLine: Boolean = false,
+    isLyricOnlyLine: Boolean = false
+) {
     Column(
         modifier = Modifier.width(IntrinsicSize.Min),
         horizontalAlignment = Alignment.Start
@@ -259,15 +270,17 @@ fun StageChordSegmentView(segment: ChordSegment) {
                 fontFamily = FontFamily.Monospace,
                 color = Color.White
             )
-        } else {
+        } else if (!isLyricOnlyLine) {
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        Text(
-            text = segment.lyric.ifEmpty { " " },
-            fontSize = 22.sp,
-            fontFamily = FontFamily.Monospace,
-            color = Color(0xFFD4D4D8)
-        )
+        if (!isChordOnlyLine) {
+            Text(
+                text = segment.lyric.ifEmpty { " " },
+                fontSize = 22.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFFD4D4D8)
+            )
+        }
     }
 }
