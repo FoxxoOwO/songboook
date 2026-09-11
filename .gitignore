@@ -7,3 +7,10 @@ server/dist
 .DS_Store
 .env
 .env.local
+
+# Android build artifacts & IDE settings
+android/.gradle/
+android/.idea/
+android/build/
+android/app/build/
+android/local.properties

@@ -51,21 +51,28 @@ COPY --from=server-builder /app/server/dist ./dist
 # Copy compiled frontend assets
 COPY --from=client-builder /app/client/dist /app/client/dist
 
+# Install su-exec for safe privilege dropping after fixing volume permissions
+RUN apk add --no-cache su-exec
+
 # Copy default seed data
 COPY server/data /app/data-default
+
+# Copy entrypoint script and ensure execution permissions
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Prepare persistent data directory and permissions
 WORKDIR /app
 RUN mkdir -p /app/data && chown -R node:node /app
-
-# Switch to non-privileged user for security
-USER node
 
 # Expose web application port
 EXPOSE 3000
 
 # Persistent storage volume for songs and playlists
 VOLUME ["/app/data"]
+
+# Entrypoint manages volume permissions and steps down to node user
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 # Run the unified Express + Static frontend server
 CMD ["node", "server/dist/index.js"]

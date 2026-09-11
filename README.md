@@ -150,8 +150,28 @@ Po pushnutí na GitHub proběhne automatický build a image bude dostupný ve va
 
 ---
 
-## 🧪 Testování
-Spuštění jednotkových testů pro transpozici a konvertor akordů:
+## 📱 Nativní Android Aplikace (Jetpack Compose)
+
+V adresáři [`android/`](android/) je kompletní nativní Android aplikace vyvinutá v **Kotlinu** s **Jetpack Compose** a **Material 3**:
+- **100% Offline fungování**: Obsahuje lokální databázi písní a playlistů, ukládanou do perzistentního JSON úložiště zařízení.
+- **Interaktivní akordy a transpozice**: Kliknutím na akord se zobrazí vektorový diagram hmatníku (Kytara i Ukulele) a lze přehrát zvuk akordu.
+- **Plynulý Autoscroll**: Nastavitelná rychlost posunu s plovoucím panelem.
+- **Chromatická ladička**: Využívá mikrofon zařízení v reálném čase (autokorelační algoritmus) s centovým ukazatelem a pitch pipe pro referenční tóny.
+- **Metronom**: Nastavení BPM, takty (4/4, 3/4, 2/4, 6/8), pulsující indikátory a funkce **Tap Tempo** pro vyťukání rytmu.
+- **Pódiový režim (Stage Mode)**: Celoobrazovkový OLED černý režim s velkým písmem pro hraní na koncertech.
+- **Monochromatický design**: Plná podpora Dark i Light mode.
+
+### Sestavení APK balíčku:
 ```bash
-npm run test
+cd android
+./gradlew assembleDebug
 ```
+Vygenerovaný balíček naleznete v:
+`android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
+## 🧪 Testování
+Spuštění jednotkových testů:
+- **Web & Backend**: `npm run test`
+- **Android**: `cd android && ./gradlew testDebugUnitTest`

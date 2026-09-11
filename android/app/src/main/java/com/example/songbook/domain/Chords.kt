@@ -1,0 +1,176 @@
+package com.example.songbook.domain
+
+data class ChordSegment(
+    val chord: String? = null,
+    val lyric: String = ""
+)
+
+sealed class ParsedLine {
+    data object Empty : ParsedLine()
+    data class Directive(val name: String, val value: String, val rawText: String) : ParsedLine()
+    data class SectionHeader(val rawText: String) : ParsedLine()
+    data class ChordLyrics(val segments: List<ChordSegment>, val rawText: String) : ParsedLine()
+}
+
+object ChordManager {
+    private val SHARPS = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+    private val FLATS = listOf("C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B")
+
+    private val NOTE_TO_SEMITONE = mapOf(
+        "C" to 0, "B#" to 0,
+        "C#" to 1, "Db" to 1,
+        "D" to 2,
+        "D#" to 3, "Eb" to 3,
+        "E" to 4, "Fb" to 4,
+        "F" to 5, "E#" to 5,
+        "F#" to 6, "Gb" to 6,
+        "G" to 7,
+        "G#" to 8, "Ab" to 8,
+        "A" to 9,
+        "A#" to 10, "Bb" to 10, "Hb" to 10,
+        "B" to 11, "Cb" to 11, "H" to 11
+    )
+
+    private val CHORD_REGEX = Regex("""^([A-Ga-gHh][#b]?)([^/]*)(?:/([A-Ga-gHh][#b]?))?$""")
+    private val CHORD_CANDIDATE_REGEX = Regex("""^[A-Ga-gHh][#b]?(?:m|min|maj|dim|aug|sus\d?|\d|\+|add\d?)*(?:/[A-Ga-gHh][#b]?)?$""")
+
+    fun isChord(token: String): Boolean {
+        if (token.isBlank()) return false
+        val clean = token.replace("(", "").replace(")", "").trim()
+        return CHORD_CANDIDATE_REGEX.matches(clean)
+    }
+
+    fun isChordLine(line: String): Boolean {
+        val trimmed = line.trim()
+        if (trimmed.isEmpty()) return false
+        val tokens = trimmed.split(Regex("""\s+""")).filter { it.isNotEmpty() }
+        if (tokens.isEmpty()) return false
+        val chordCount = tokens.count { isChord(it) }
+        return (chordCount.toDouble() / tokens.size) >= 0.6
+    }
+
+    fun transposeNote(note: String, semitones: Int, preferFlats: Boolean = false): String {
+        val upper = note.uppercase()
+        val semitone = NOTE_TO_SEMITONE[upper] ?: return note
+
+        var newSemitone = (semitone + semitones) % 12
+        if (newSemitone < 0) newSemitone += 12
+
+        val scale = if (preferFlats) FLATS else SHARPS
+        return scale[newSemitone]
+    }
+
+    fun transposeChord(chord: String, semitones: Int, preferFlats: Boolean = false): String {
+        if (chord.isBlank() || semitones == 0) return chord
+        val match = CHORD_REGEX.matchEntire(chord.trim()) ?: return chord
+
+        val root = match.groupValues[1]
+        val modifier = match.groupValues[2]
+        val bass = match.groupValues.getOrNull(3).orEmpty()
+
+        val transposedRoot = transposeNote(root, semitones, preferFlats)
+        return if (bass.isNotEmpty()) {
+            val transposedBass = transposeNote(bass, semitones, preferFlats)
+            "$transposedRoot$modifier/$transposedBass"
+        } else {
+            "$transposedRoot$modifier"
+        }
+    }
+
+    fun parseChordProLine(line: String, semitones: Int = 0, preferFlats: Boolean = false): List<ChordSegment> {
+        val segments = mutableListOf<ChordSegment>()
+        val regex = Regex("""\[([^\]]+)\]""")
+        var lastIndex = 0
+        var currentChord: String? = null
+
+        val matches = regex.findAll(line)
+        for (match in matches) {
+            val textBefore = line.substring(lastIndex, match.range.first)
+            if (textBefore.isNotEmpty() || currentChord != null) {
+                segments.add(ChordSegment(chord = currentChord, lyric = textBefore))
+                currentChord = null
+            }
+            val rawChord = match.groupValues[1].trim()
+            currentChord = if (semitones != 0) transposeChord(rawChord, semitones, preferFlats) else rawChord
+            lastIndex = match.range.last + 1
+        }
+
+        val remainingText = line.substring(lastIndex)
+        if (remainingText.isNotEmpty() || currentChord != null) {
+            segments.add(ChordSegment(chord = currentChord, lyric = remainingText))
+        }
+
+        return segments
+    }
+
+    fun convertTwoLineToChordPro(text: String): String {
+        val lines = text.lines()
+        val result = mutableListOf<String>()
+        var i = 0
+
+        while (i < lines.size) {
+            val currentLine = lines[i]
+            val nextLine = if (i + 1 < lines.size) lines[i + 1] else null
+
+            if (isChordLine(currentLine) && nextLine != null && !isChordLine(nextLine) && nextLine.isNotBlank()) {
+                val chordMatches = Regex("""\S+""").findAll(currentLine)
+                val chordsWithIndex = chordMatches.filter { isChord(it.value) }
+                    .map { Pair(it.value, it.range.first) }.toList()
+
+                val merged = StringBuilder()
+                var lastLyricIdx = 0
+
+                for ((chord, index) in chordsWithIndex) {
+                    if (index > lastLyricIdx && index <= nextLine.length) {
+                        merged.append(nextLine.substring(lastLyricIdx, index))
+                        lastLyricIdx = index
+                    } else if (index > nextLine.length && lastLyricIdx < nextLine.length) {
+                        merged.append(nextLine.substring(lastLyricIdx))
+                        lastLyricIdx = nextLine.length
+                    }
+                    merged.append("[$chord]")
+                }
+                if (lastLyricIdx < nextLine.length) {
+                    merged.append(nextLine.substring(lastLyricIdx))
+                }
+
+                result.add(merged.toString())
+                i += 2
+            } else {
+                result.add(currentLine)
+                i += 1
+            }
+        }
+        return result.joinToString("\n")
+    }
+
+    fun parseSongContent(content: String, semitones: Int = 0, preferFlats: Boolean = false): List<ParsedLine> {
+        val isChordPro = content.contains(Regex("""\[[A-Ga-gHh][^\]]*\]"""))
+        val normalized = if (isChordPro) content else convertTwoLineToChordPro(content)
+
+        return normalized.lines().map { line ->
+            val trimmed = line.trim()
+            when {
+                trimmed.isEmpty() -> ParsedLine.Empty
+                trimmed.startsWith("{") && trimmed.endsWith("}") -> {
+                    val inside = trimmed.substring(1, trimmed.length - 1)
+                    val colonIdx = inside.indexOf(':')
+                    if (colonIdx != -1) {
+                        val name = inside.substring(0, colonIdx).trim()
+                        val value = inside.substring(colonIdx + 1).trim()
+                        ParsedLine.Directive(name, value, trimmed)
+                    } else {
+                        ParsedLine.Directive(inside, "", trimmed)
+                    }
+                }
+                Regex("""^(?:R:|Ref(?:r[eé]n)?:|Chorus:|Verse\s*\d+:|Sloka\s*\d+:|Bridge:|Outro:|Intro:|\d+\.)""", RegexOption.IGNORE_CASE).containsMatchIn(trimmed) -> {
+                    ParsedLine.SectionHeader(line)
+                }
+                else -> {
+                    val segments = parseChordProLine(line, semitones, preferFlats)
+                    ParsedLine.ChordLyrics(segments, line)
+                }
+            }
+        }
+    }
+}

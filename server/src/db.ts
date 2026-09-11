@@ -182,7 +182,11 @@ class Database {
 
   constructor() {
     if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+      try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      } catch (err: any) {
+        console.error(`⚠️ Nelze vytvořit složku ${DATA_DIR}:`, err.message);
+      }
     }
 
     if (fs.existsSync(DB_FILE)) {
@@ -216,7 +220,11 @@ class Database {
   }
 
   private save() {
-    fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
+    try {
+      fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
+    } catch (err: any) {
+      console.error(`❌ Chyba při ukládání do ${DB_FILE}:`, err.message);
+    }
   }
 
   // Songs
