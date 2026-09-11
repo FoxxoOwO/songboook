@@ -250,8 +250,14 @@ class Database {
     return this.data.songs.find(s => s.id === id);
   }
 
-  createSong(songData: Omit<Song, 'id' | 'created_at' | 'updated_at'>): Song {
-    const id = songData.title.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Date.now().toString().slice(-4);
+  createSong(songData: Omit<Song, 'id' | 'created_at' | 'updated_at'> & { id?: string }): Song {
+    if (songData.id) {
+      const existing = this.data.songs.find(s => s.id === songData.id);
+      if (existing) {
+        return this.updateSong(songData.id, songData)!;
+      }
+    }
+    const id = songData.id || (songData.title.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Date.now().toString().slice(-4));
     const now = new Date().toISOString();
     const newSong: Song = {
       ...songData,
@@ -306,8 +312,14 @@ class Database {
     return { ...playlist, songs };
   }
 
-  createPlaylist(title: string, description?: string, song_ids: string[] = []): Playlist {
-    const id = 'pl-' + Date.now();
+  createPlaylist(title: string, description?: string, song_ids: string[] = [], customId?: string): Playlist {
+    if (customId) {
+      const existing = this.data.playlists.find(p => p.id === customId);
+      if (existing) {
+        return this.updatePlaylist(customId, { title, description: description || '', song_ids })!;
+      }
+    }
+    const id = customId || ('pl-' + Date.now());
     const now = new Date().toISOString();
     const newPlaylist: Playlist = {
       id,

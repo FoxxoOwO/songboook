@@ -57,6 +57,7 @@ app.get('/api/songs/:id', (req, res) => {
 app.post('/api/songs', (req, res) => {
   try {
     const {
+      id,
       title,
       artist,
       album,
@@ -79,6 +80,7 @@ app.post('/api/songs', (req, res) => {
     const defaultLinks = generateMusicLinks(artist, title);
 
     const song = db.createSong({
+      id: id ? String(id).trim() : undefined,
       title: title.trim(),
       artist: artist.trim(),
       album: album?.trim() || '',
@@ -147,11 +149,11 @@ app.get('/api/playlists/:id', (req, res) => {
 
 app.post('/api/playlists', (req, res) => {
   try {
-    const { title, description, song_ids } = req.body;
+    const { id, title, description, song_ids } = req.body;
     if (!title) {
       return res.status(400).json({ error: 'Název playlistu je povinný.' });
     }
-    const pl = db.createPlaylist(title, description, song_ids);
+    const pl = db.createPlaylist(title, description, song_ids, id ? String(id).trim() : undefined);
     res.status(201).json(pl);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

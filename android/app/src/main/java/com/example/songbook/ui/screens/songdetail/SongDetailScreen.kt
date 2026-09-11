@@ -24,11 +24,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.MusicVideo
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,6 +43,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -91,6 +94,7 @@ fun SongDetailScreen(
     var autoscrollSpeed by remember { mutableIntStateOf(song.autoscroll_speed.coerceIn(5, 60)) }
     var isAutoscrolling by remember { mutableStateOf(false) }
     var selectedChordForDetail by remember { mutableStateOf<String?>(null) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
 
@@ -134,6 +138,9 @@ fun SongDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showDeleteDialog = true }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Smazat píseň")
+                    }
                     IconButton(onClick = { onOpenStageMode(song.id) }) {
                         Icon(Icons.Default.Fullscreen, contentDescription = "Pódiový režim")
                     }
@@ -395,6 +402,30 @@ fun SongDetailScreen(
         ChordDetailBottomSheet(
             chordName = chord,
             onDismiss = { selectedChordForDetail = null }
+        )
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Smazat píseň") },
+            text = { Text("Opravdu chcete smazat píseň „${song.title}“? Změna se synchronizuje i se serverem.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        repository.deleteSong(song.id)
+                        onBack()
+                    }
+                ) {
+                    Text("Smazat", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Zrušit")
+                }
+            }
         )
     }
 }

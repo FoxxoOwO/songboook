@@ -4,10 +4,15 @@ import android.content.Context
 import com.example.songbook.data.model.Playlist
 import com.example.songbook.data.model.Song
 import com.example.songbook.data.remote.ServerApiClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -26,6 +31,7 @@ class SongRepository(private val context: Context) {
     private val dbFile = File(context.filesDir, "songbook_db.json")
     private val prefs = context.getSharedPreferences("songbook_prefs", Context.MODE_PRIVATE)
     private val apiClient = ServerApiClient(json)
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
     val songs: StateFlow<List<Song>> = _songs.asStateFlow()
@@ -45,7 +51,132 @@ class SongRepository(private val context: Context) {
         return apiClient.testConnection(url)
     }
 
+    private fun getPrefSet(key: String): MutableSet<String> {
+        return prefs.getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
+    }
+
+    private fun savePrefSet(key: String, set: Set<String>) {
+        prefs.edit().putStringSet(key, set.toSet()).apply()
+    }
+
+    private fun ensureInitialSyncMetadata() {
+        if (!prefs.getBoolean("has_initialized_sync_meta", false)) {
+            val initialSeedSongIds = INITIAL_SONGS.map { it.id }.toSet()
+            val initialSeedPlaylistIds = INITIAL_PLAYLISTS.map { it.id }.toSet()
+
+            val pendingUploadSongs = mutableSetOf<String>()
+            val syncedSongs = mutableSetOf<String>()
+            for (song in _songs.value) {
+                if (song.id in initialSeedSongIds) {
+                    syncedSongs.add(song.id)
+                } else {
+                    pendingUploadSongs.add(song.id)
+                }
+            }
+
+            val pendingUploadPlaylists = mutableSetOf<String>()
+            val syncedPlaylists = mutableSetOf<String>()
+            for (pl in _playlists.value) {
+                if (pl.id in initialSeedPlaylistIds) {
+                    syncedPlaylists.add(pl.id)
+                } else {
+                    pendingUploadPlaylists.add(pl.id)
+                }
+            }
+
+            savePrefSet("synced_song_ids", syncedSongs)
+            savePrefSet("pending_upload_song_ids", pendingUploadSongs)
+            savePrefSet("synced_playlist_ids", syncedPlaylists)
+            savePrefSet("pending_upload_playlist_ids", pendingUploadPlaylists)
+            prefs.edit().putBoolean("has_initialized_sync_meta", true).apply()
+        }
+    }
+
     suspend fun syncWithServer(url: String = getServerUrl()): Result<Pair<Int, Int>> {
+        ensureInitialSyncMetadata()
+
+        // 1. Process pending song deletions on server
+        val pendingDeleteSongs = getPrefSet("pending_delete_song_ids")
+        val successfullyDeletedSongs = mutableSetOf<String>()
+        for (id in pendingDeleteSongs) {
+            val delRes = apiClient.deleteSong(url, id)
+            if (delRes.isSuccess) {
+                successfullyDeletedSongs.add(id)
+            }
+        }
+        pendingDeleteSongs.removeAll(successfullyDeletedSongs)
+        savePrefSet("pending_delete_song_ids", pendingDeleteSongs)
+
+        // 2. Process pending playlist deletions on server
+        val pendingDeletePlaylists = getPrefSet("pending_delete_playlist_ids")
+        val successfullyDeletedPlaylists = mutableSetOf<String>()
+        for (id in pendingDeletePlaylists) {
+            val delRes = apiClient.deletePlaylist(url, id)
+            if (delRes.isSuccess) {
+                successfullyDeletedPlaylists.add(id)
+            }
+        }
+        pendingDeletePlaylists.removeAll(successfullyDeletedPlaylists)
+        savePrefSet("pending_delete_playlist_ids", pendingDeletePlaylists)
+
+        // 3. Process pending song creations (push to server)
+        val pendingUploadSongs = getPrefSet("pending_upload_song_ids")
+        val successfullyUploadedSongs = mutableSetOf<String>()
+        for (id in pendingUploadSongs) {
+            val song = getSong(id)
+            if (song != null) {
+                val createRes = apiClient.createSong(url, song)
+                if (createRes.isSuccess) {
+                    successfullyUploadedSongs.add(id)
+                    val synced = getPrefSet("synced_song_ids")
+                    synced.add(id)
+                    savePrefSet("synced_song_ids", synced)
+                }
+            } else {
+                successfullyUploadedSongs.add(id)
+            }
+        }
+        pendingUploadSongs.removeAll(successfullyUploadedSongs)
+        savePrefSet("pending_upload_song_ids", pendingUploadSongs)
+
+        // 4. Process pending song updates
+        val pendingUpdateSongs = getPrefSet("pending_update_song_ids")
+        val successfullyUpdatedSongs = mutableSetOf<String>()
+        for (id in pendingUpdateSongs) {
+            val song = getSong(id)
+            if (song != null) {
+                val updateRes = apiClient.updateSong(url, song)
+                if (updateRes.isSuccess) {
+                    successfullyUpdatedSongs.add(id)
+                }
+            } else {
+                successfullyUpdatedSongs.add(id)
+            }
+        }
+        pendingUpdateSongs.removeAll(successfullyUpdatedSongs)
+        savePrefSet("pending_update_song_ids", pendingUpdateSongs)
+
+        // 5. Process pending playlist uploads
+        val pendingUploadPlaylists = getPrefSet("pending_upload_playlist_ids")
+        val successfullyUploadedPlaylists = mutableSetOf<String>()
+        for (id in pendingUploadPlaylists) {
+            val pl = _playlists.value.find { it.id == id }
+            if (pl != null) {
+                val createRes = apiClient.createPlaylist(url, pl)
+                if (createRes.isSuccess) {
+                    successfullyUploadedPlaylists.add(id)
+                    val synced = getPrefSet("synced_playlist_ids")
+                    synced.add(id)
+                    savePrefSet("synced_playlist_ids", synced)
+                }
+            } else {
+                successfullyUploadedPlaylists.add(id)
+            }
+        }
+        pendingUploadPlaylists.removeAll(successfullyUploadedPlaylists)
+        savePrefSet("pending_upload_playlist_ids", pendingUploadPlaylists)
+
+        // 6. Fetch full state from server
         val songsResult = apiClient.fetchSongs(url)
         if (songsResult.isFailure) {
             return Result.failure(songsResult.exceptionOrNull() ?: Exception("Chyba při stahování písní"))
@@ -59,19 +190,40 @@ class SongRepository(private val context: Context) {
         val remoteSongs = songsResult.getOrNull() ?: emptyList()
         val remotePlaylists = playlistsResult.getOrNull() ?: emptyList()
 
-        // Merge songs: keep existing local songs, add or update remote
-        val currentSongsMap = _songs.value.associateBy { it.id }.toMutableMap()
-        for (song in remoteSongs) {
-            currentSongsMap[song.id] = song
-        }
-        _songs.value = currentSongsMap.values.toList()
+        val remoteSongsMap = remoteSongs.associateBy { it.id }
+        val remainingPendingUploads = getPrefSet("pending_upload_song_ids")
+        val currentLocalSongs = _songs.value
 
-        // Merge playlists
-        val currentPlaylistsMap = _playlists.value.associateBy { it.id }.toMutableMap()
-        for (pl in remotePlaylists) {
-            currentPlaylistsMap[pl.id] = pl
+        // Reconcile songs:
+        // Remote songs from server are canonical.
+        val mergedSongs = mutableListOf<Song>()
+        mergedSongs.addAll(remoteSongs)
+
+        // Only retain local songs that are STILL pending upload (e.g. upload failed)
+        for (localSong in currentLocalSongs) {
+            if (localSong.id !in remoteSongsMap && localSong.id in remainingPendingUploads) {
+                mergedSongs.add(localSong)
+            }
         }
-        _playlists.value = currentPlaylistsMap.values.toList()
+        _songs.value = mergedSongs
+        val newSyncedSongIds = remoteSongs.map { it.id }.toSet()
+        savePrefSet("synced_song_ids", newSyncedSongIds)
+
+        // Reconcile playlists:
+        val remotePlaylistsMap = remotePlaylists.associateBy { it.id }
+        val remainingPendingPlaylistUploads = getPrefSet("pending_upload_playlist_ids")
+        val currentLocalPlaylists = _playlists.value
+
+        val mergedPlaylists = mutableListOf<Playlist>()
+        mergedPlaylists.addAll(remotePlaylists)
+        for (localPl in currentLocalPlaylists) {
+            if (localPl.id !in remotePlaylistsMap && localPl.id in remainingPendingPlaylistUploads) {
+                mergedPlaylists.add(localPl)
+            }
+        }
+        _playlists.value = mergedPlaylists
+        val newSyncedPlaylistIds = remotePlaylists.map { it.id }.toSet()
+        savePrefSet("synced_playlist_ids", newSyncedPlaylistIds)
 
         saveData()
         return Result.success(Pair(remoteSongs.size, remotePlaylists.size))
@@ -79,6 +231,7 @@ class SongRepository(private val context: Context) {
 
     init {
         loadData()
+        ensureInitialSyncMetadata()
     }
 
     private fun loadData() {
@@ -117,21 +270,84 @@ class SongRepository(private val context: Context) {
             current[index] = updatedSong
             _songs.value = current
             saveData()
+
+            val pendingUpdates = getPrefSet("pending_update_song_ids")
+            pendingUpdates.add(updatedSong.id)
+            savePrefSet("pending_update_song_ids", pendingUpdates)
+
+            scope.launch {
+                try {
+                    val res = apiClient.updateSong(getServerUrl(), updatedSong)
+                    if (res.isSuccess) {
+                        val p = getPrefSet("pending_update_song_ids")
+                        p.remove(updatedSong.id)
+                        savePrefSet("pending_update_song_ids", p)
+                    }
+                } catch (_: Exception) {}
+            }
         }
     }
 
     fun addSong(song: Song) {
         _songs.value = listOf(song) + _songs.value
         saveData()
+
+        val pending = getPrefSet("pending_upload_song_ids")
+        pending.add(song.id)
+        savePrefSet("pending_upload_song_ids", pending)
+
+        scope.launch {
+            try {
+                val res = apiClient.createSong(getServerUrl(), song)
+                if (res.isSuccess) {
+                    val p = getPrefSet("pending_upload_song_ids")
+                    p.remove(song.id)
+                    savePrefSet("pending_upload_song_ids", p)
+
+                    val synced = getPrefSet("synced_song_ids")
+                    synced.add(song.id)
+                    savePrefSet("synced_song_ids", synced)
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     fun deleteSong(id: String) {
-        _songs.value = _songs.value.filter { it.id !== id }
+        _songs.value = _songs.value.filter { it.id != id }
         // Remove from playlists too
         _playlists.value = _playlists.value.map { pl ->
             pl.copy(song_ids = pl.song_ids.filter { it != id })
         }
         saveData()
+
+        val pendingUpload = getPrefSet("pending_upload_song_ids")
+        val wasPendingUpload = pendingUpload.remove(id)
+        savePrefSet("pending_upload_song_ids", pendingUpload)
+
+        val pendingUpdate = getPrefSet("pending_update_song_ids")
+        pendingUpdate.remove(id)
+        savePrefSet("pending_update_song_ids", pendingUpdate)
+
+        val synced = getPrefSet("synced_song_ids")
+        val wasSynced = synced.remove(id)
+        savePrefSet("synced_song_ids", synced)
+
+        if (wasSynced || !wasPendingUpload) {
+            val pendingDel = getPrefSet("pending_delete_song_ids")
+            pendingDel.add(id)
+            savePrefSet("pending_delete_song_ids", pendingDel)
+
+            scope.launch {
+                try {
+                    val res = apiClient.deleteSong(getServerUrl(), id)
+                    if (res.isSuccess) {
+                        val p = getPrefSet("pending_delete_song_ids")
+                        p.remove(id)
+                        savePrefSet("pending_delete_song_ids", p)
+                    }
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     fun createPlaylist(title: String, description: String = "", songIds: List<String> = emptyList()) {
@@ -144,6 +360,25 @@ class SongRepository(private val context: Context) {
         )
         _playlists.value = _playlists.value + newPl
         saveData()
+
+        val pending = getPrefSet("pending_upload_playlist_ids")
+        pending.add(newPl.id)
+        savePrefSet("pending_upload_playlist_ids", pending)
+
+        scope.launch {
+            try {
+                val res = apiClient.createPlaylist(getServerUrl(), newPl)
+                if (res.isSuccess) {
+                    val p = getPrefSet("pending_upload_playlist_ids")
+                    p.remove(newPl.id)
+                    savePrefSet("pending_upload_playlist_ids", p)
+
+                    val synced = getPrefSet("synced_playlist_ids")
+                    synced.add(newPl.id)
+                    savePrefSet("synced_playlist_ids", synced)
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     fun updatePlaylist(updatedPlaylist: Playlist) {
@@ -153,12 +388,43 @@ class SongRepository(private val context: Context) {
             current[index] = updatedPlaylist
             _playlists.value = current
             saveData()
+
+            scope.launch {
+                try {
+                    apiClient.updatePlaylist(getServerUrl(), updatedPlaylist)
+                } catch (_: Exception) {}
+            }
         }
     }
 
     fun deletePlaylist(id: String) {
         _playlists.value = _playlists.value.filter { it.id != id }
         saveData()
+
+        val pendingUpload = getPrefSet("pending_upload_playlist_ids")
+        val wasPendingUpload = pendingUpload.remove(id)
+        savePrefSet("pending_upload_playlist_ids", pendingUpload)
+
+        val synced = getPrefSet("synced_playlist_ids")
+        val wasSynced = synced.remove(id)
+        savePrefSet("synced_playlist_ids", synced)
+
+        if (wasSynced || !wasPendingUpload) {
+            val pendingDel = getPrefSet("pending_delete_playlist_ids")
+            pendingDel.add(id)
+            savePrefSet("pending_delete_playlist_ids", pendingDel)
+
+            scope.launch {
+                try {
+                    val res = apiClient.deletePlaylist(getServerUrl(), id)
+                    if (res.isSuccess) {
+                        val p = getPrefSet("pending_delete_playlist_ids")
+                        p.remove(id)
+                        savePrefSet("pending_delete_playlist_ids", p)
+                    }
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     companion object {

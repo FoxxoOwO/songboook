@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistPlay
@@ -26,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -65,6 +67,7 @@ fun PlaylistsScreen(
     val songs by repository.songs.collectAsState()
     var selectedPlaylist by remember { mutableStateOf<Playlist?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -83,6 +86,13 @@ fun PlaylistsScreen(
                     if (selectedPlaylist != null) {
                         TextButton(onClick = { selectedPlaylist = null }) {
                             Text("Všechny")
+                        }
+                    }
+                },
+                actions = {
+                    if (selectedPlaylist != null) {
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Smazat playlist")
                         }
                     }
                 },
@@ -297,6 +307,31 @@ fun PlaylistsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showAddDialog = false }) {
+                    Text("Zrušit")
+                }
+            }
+        )
+    }
+
+    if (showDeleteDialog && selectedPlaylist != null) {
+        val pl = selectedPlaylist!!
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Smazat playlist") },
+            text = { Text("Opravdu chcete smazat playlist „${pl.title}“? Změna se synchronizuje i se serverem.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        selectedPlaylist = null
+                        repository.deletePlaylist(pl.id)
+                    }
+                ) {
+                    Text("Smazat", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
                     Text("Zrušit")
                 }
             }
