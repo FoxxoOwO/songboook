@@ -30,10 +30,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -50,6 +53,8 @@ import com.example.songbook.data.repository.SongRepository
 import com.example.songbook.domain.ChordManager
 import com.example.songbook.domain.ChordSegment
 import com.example.songbook.domain.ParsedLine
+import com.example.songbook.ui.components.ZoomLevelBadge
+import com.example.songbook.ui.components.pinchToZoom
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -76,6 +81,25 @@ fun StageModeScreen(
         return
     }
 
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("songbook_prefs", Context.MODE_PRIVATE) }
+    var fontScale by remember {
+        mutableFloatStateOf(prefs.getFloat("stage_font_scale", 1.0f))
+    }
+    var isZooming by remember { mutableStateOf(false) }
+
+    LaunchedEffect(fontScale) {
+        delay(300)
+        prefs.edit().putFloat("stage_font_scale", fontScale).apply()
+    }
+
+    LaunchedEffect(isZooming, fontScale) {
+        if (isZooming) {
+            delay(1200)
+            isZooming = false
+        }
+    }
+
     val scrollState = rememberScrollState()
     var isAutoscrolling by remember { mutableStateOf(false) }
     var speed by remember { mutableIntStateOf(song.autoscroll_speed.coerceIn(5, 60)) }
@@ -99,7 +123,22 @@ fun StageModeScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .pinchToZoom { zoom ->
+                fontScale = (fontScale * zoom).coerceIn(0.65f, 2.5f)
+                isZooming = true
+            }
     ) {
+        ZoomLevelBadge(
+            visible = isZooming,
+            fontScale = fontScale,
+            onReset = {
+                fontScale = 1.0f
+                isZooming = true
+            },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 16.dp)
+        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -156,7 +195,7 @@ fun StageModeScreen(
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = line.rawText,
-                                fontSize = 24.sp,
+                                fontSize = (24 * fontScale).sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color(0xFFE4E4E7),
                                 fontFamily = FontFamily.Monospace
@@ -174,7 +213,8 @@ fun StageModeScreen(
                                     StageChordSegmentView(
                                         segment = segment,
                                         isChordOnlyLine = hasAnyChords && !hasAnyLyrics,
-                                        isLyricOnlyLine = !hasAnyChords && hasAnyLyrics
+                                        isLyricOnlyLine = !hasAnyChords && hasAnyLyrics,
+                                        fontScale = fontScale
                                     )
                                 }
                             }
@@ -256,7 +296,8 @@ fun StageModeScreen(
 fun StageChordSegmentView(
     segment: ChordSegment,
     isChordOnlyLine: Boolean = false,
-    isLyricOnlyLine: Boolean = false
+    isLyricOnlyLine: Boolean = false,
+    fontScale: Float = 1.0f
 ) {
     Column(
         modifier = Modifier.width(IntrinsicSize.Min),
@@ -265,19 +306,19 @@ fun StageChordSegmentView(
         if (!segment.chord.isNullOrBlank()) {
             Text(
                 text = segment.chord,
-                fontSize = 20.sp,
+                fontSize = (20 * fontScale).sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace,
                 color = Color.White
             )
         } else if (!isLyricOnlyLine) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height((24 * fontScale).dp))
         }
 
         if (!isChordOnlyLine) {
             Text(
                 text = segment.lyric.ifEmpty { " " },
-                fontSize = 22.sp,
+                fontSize = (22 * fontScale).sp,
                 fontFamily = FontFamily.Monospace,
                 color = Color(0xFFD4D4D8)
             )

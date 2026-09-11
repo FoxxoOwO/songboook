@@ -46,10 +46,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -67,6 +70,8 @@ import com.example.songbook.domain.ChordManager
 import com.example.songbook.domain.ChordSegment
 import com.example.songbook.domain.ParsedLine
 import com.example.songbook.ui.components.ChordDetailBottomSheet
+import com.example.songbook.ui.components.ZoomLevelBadge
+import com.example.songbook.ui.components.pinchToZoom
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -86,6 +91,25 @@ fun SongDetailScreen(
             Text("Píseň nenalezena", style = MaterialTheme.typography.bodyLarge)
         }
         return
+    }
+
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("songbook_prefs", Context.MODE_PRIVATE) }
+    var fontScale by remember {
+        mutableFloatStateOf(prefs.getFloat("song_font_scale", 1.0f))
+    }
+    var isZooming by remember { mutableStateOf(false) }
+
+    LaunchedEffect(fontScale) {
+        delay(300)
+        prefs.edit().putFloat("song_font_scale", fontScale).apply()
+    }
+
+    LaunchedEffect(isZooming, fontScale) {
+        if (isZooming) {
+            delay(1200)
+            isZooming = false
+        }
     }
 
     var semitones by remember { mutableIntStateOf(0) }
@@ -157,7 +181,22 @@ fun SongDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .pinchToZoom { zoom ->
+                    fontScale = (fontScale * zoom).coerceIn(0.65f, 2.5f)
+                    isZooming = true
+                }
         ) {
+            ZoomLevelBadge(
+                visible = isZooming,
+                fontScale = fontScale,
+                onReset = {
+                    fontScale = 1.0f
+                    isZooming = true
+                },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 12.dp)
+            )
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -269,7 +308,9 @@ fun SongDetailScreen(
                                 if (line.name.lowercase() != "title" && line.name.lowercase() != "artist") {
                                     Text(
                                         text = line.rawText,
-                                        style = MaterialTheme.typography.labelMedium,
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontSize = (13 * fontScale).sp
+                                        ),
                                         color = MaterialTheme.colorScheme.secondary
                                     )
                                 }
@@ -280,7 +321,8 @@ fun SongDetailScreen(
                                     text = line.rawText,
                                     style = MaterialTheme.typography.titleMedium.copy(
                                         fontWeight = FontWeight.Bold,
-                                        fontFamily = FontFamily.Monospace
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = (16 * fontScale).sp
                                     ),
                                     color = MaterialTheme.colorScheme.primary
                                 )
@@ -299,6 +341,7 @@ fun SongDetailScreen(
                                             segment = segment,
                                             isChordOnlyLine = hasAnyChords && !hasAnyLyrics,
                                             isLyricOnlyLine = !hasAnyChords && hasAnyLyrics,
+                                            fontScale = fontScale,
                                             onChordClick = { chord -> selectedChordForDetail = chord }
                                         )
                                     }
@@ -440,6 +483,7 @@ fun ChordLyricSegmentView(
     segment: ChordSegment,
     isChordOnlyLine: Boolean = false,
     isLyricOnlyLine: Boolean = false,
+    fontScale: Float = 1.0f,
     onChordClick: (String) -> Unit
 ) {
     Column(
@@ -462,11 +506,11 @@ fun ChordLyricSegmentView(
                         fontWeight = FontWeight.Bold
                     ),
                     color = MaterialTheme.colorScheme.primary,
-                    fontSize = 13.sp
+                    fontSize = (13 * fontScale).sp
                 )
             }
         } else if (!isLyricOnlyLine) {
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height((18 * fontScale).dp))
         }
 
         // Lyric text below
@@ -475,7 +519,7 @@ fun ChordLyricSegmentView(
                 text = segment.lyric.ifEmpty { " " },
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp
+                    fontSize = (16 * fontScale).sp
                 ),
                 color = MaterialTheme.colorScheme.onBackground
             )
