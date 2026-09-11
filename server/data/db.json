@@ -1,0 +1,116 @@
+{
+  "songs": [
+    {
+      "id": "stanky-brontosauri",
+      "title": "Stánky",
+      "artist": "Brontosauři / Jan Nedvěd",
+      "album": "Na kameni kámen",
+      "key": "G",
+      "capo": 0,
+      "tempo": 95,
+      "autoscroll_speed": 22,
+      "tags": [
+        "táborák",
+        "české",
+        "folklór",
+        "klasika"
+      ],
+      "youtube_url": "https://www.youtube.com/watch?v=kYJ5oQ1gN0k",
+      "spotify_url": "https://open.spotify.com/track/1a2b3c",
+      "deezer_url": "",
+      "content": "{title: Stánky}\n{artist: Brontosauři}\n\n[G]U stánků [C]na levnou krásu,\n[G]postávaj a [D]smějou se času,\n[G]ujíždí jim [C]vlak, co právě [G]přijel, [D]a nikdo [G]neví.\n\n[G]U stánků [C]na levnou krásu,\n[G]postávaj a [D]smějou se času,\n[G]ujíždí jim [C]vlak, co právě [G]přijel, [D]a nikdo [G]neví.\n\nR:\nJen [C]zahlídli svět, maj na duši [D]vrásky,\ntak [G]málo je, [Em]málo je lásky,\n[G]ztracená víra hrozny z vinic [D]neoberou.\n\n[G]Chtěli by [C]žít, jako ti druzí,\n[G]v kabelkách [D]kousek mýdla a špínu,\n[G]probudí tě [C]ráno a v [G]ústech zbylo [D]jenom slano.\n\nR:\nJen [C]zahlídli svět, maj na duši [D]vrásky,\ntak [G]málo je, [Em]málo je lásky,\n[G]ztracená víra hrozny z vinic [D]neoberou.",
+      "created_at": "2026-09-11T06:41:46.918Z",
+      "updated_at": "2026-09-11T06:41:46.918Z"
+    },
+    {
+      "id": "bedna-od-vodopadu",
+      "title": "Bedna od vodopádu",
+      "artist": "Miki Ryvola",
+      "album": "Zlatý klíč",
+      "key": "Am",
+      "capo": 0,
+      "tempo": 108,
+      "autoscroll_speed": 25,
+      "tags": [
+        "táborák",
+        "trampské",
+        "české",
+        "akustika"
+      ],
+      "youtube_url": "https://www.youtube.com/watch?v=abcxyz123",
+      "spotify_url": "",
+      "deezer_url": "",
+      "content": "{title: Bedna od vodopádu}\n{artist: Miki Ryvola}\n\n[Am]Tak kopni do tý [C]bedny, ať [G]panstvo neče[Am]ká,\njsou dlouhý schody do nebe a [G]štreka dale[Am]ká.\nDo nebeskýho báru, čas [C]kvapí, [G]už je [Am]čas,\ntak kopni do tý bedny, ať [G]chytneš druhej [Am]dech!\n\nR:\n[Am]Mít tak všechny [C]prachy, co [G]jsem do chřtánu [Am]vlil,\nmít tak všechny [C]holky, co [G]jsem s nima [Am]byl!\nJenže [C]člověk míní, [G]pánbůh [Am]mění,\na z [C]velký slávy [G]zbylo [Am]vření!\n\n[Am]Tak kopni do tý [C]bedny, ať [G]panstvo neče[Am]ká,\njsou dlouhý schody do nebe a [G]štreka dale[Am]ká!",
+      "created_at": "2026-09-11T06:41:46.918Z",
+      "updated_at": "2026-09-11T06:41:46.918Z"
+    },
+    {
+      "id": "wonderwall-oasis",
+      "title": "Wonderwall",
+      "artist": "Oasis",
+      "album": "(What's the Story) Morning Glory?",
+      "key": "Em",
+      "capo": 2,
+      "tempo": 87,
+      "autoscroll_speed": 20,
+      "tags": [
+        "rock",
+        "britpop",
+        "anglické",
+        "kytara"
+      ],
+      "youtube_url": "https://www.youtube.com/watch?v=bx1Bh8ZvH84",
+      "spotify_url": "https://open.spotify.com/track/7ygpRikVyFcf9pD07yZqoo",
+      "deezer_url": "",
+      "content": "{title: Wonderwall}\n{artist: Oasis}\n{capo: 2}\n\n[Em7]Today is [G]gonna be the day that they're [Dsus4]gonna throw it back to [A7sus4]you\n[Em7]By now you [G]should've somehow rea[Dsus4]lised what you gotta [A7sus4]do\n[Em7]I don't believe that [G]anybody [Dsus4]feels the way I [A7sus4]do about you [Cadd9]now [Dsus4] [A7sus4]\n\n[Em7]Backbeat, the [G]word is on the street that the [Dsus4]fire in your heart is [A7sus4]out\n[Em7]I'm sure you've [G]heard it all before, but you [Dsus4]never really had a [A7sus4]doubt\n[Em7]I don't believe that [G]anybody [Dsus4]feels the way I [A7sus4]do about you [Em7]now [G] [Dsus4] [A7sus4]\n\n[Cadd9]And all the [D]roads we have to walk are [Em7]winding\n[Cadd9]And all the [D]lights that lead us there are [Em7]blinding\n[Cadd9]There are many [D]things that I would [G]like to [D/F#]say to [Em7]you,\nbut I don't know [A7sus4]how\n\nChorus:\nBecause [Cadd9]maybe, [Em7] [G]\nyou're [Em7]gonna be the one that [Cadd9]saves me [Em7] [G]\nAnd [Em7]after [Cadd9]all, [Em7] [G]\nyou're my [Em7]wonder[Cadd9]wall [Em7] [G] [Em7]",
+      "created_at": "2026-09-11T06:41:46.918Z",
+      "updated_at": "2026-09-11T06:41:46.918Z"
+    },
+    {
+      "id": "hallelujah-leonard-cohen",
+      "title": "Hallelujah",
+      "artist": "Leonard Cohen",
+      "album": "Various Positions",
+      "key": "C",
+      "capo": 0,
+      "tempo": 60,
+      "autoscroll_speed": 18,
+      "tags": [
+        "balada",
+        "anglické",
+        "klasika",
+        "akustika"
+      ],
+      "youtube_url": "https://www.youtube.com/watch?v=ttEMYvpoR-k",
+      "spotify_url": "",
+      "deezer_url": "",
+      "content": "{title: Hallelujah}\n{artist: Leonard Cohen}\n\nNow I've [C]heard there was a [Am]secret chord\nThat [C]David played, and it [Am]pleased the Lord\nBut [F]you don't really [G]care for music, [C]do you? [G]\nIt [C]goes like this, the [F]fourth, the [G]fifth\nThe [Am]minor fall, the [F]major lift\nThe [G]baffled king com[E7]posing Halle[Am]lujah\n\nChorus:\nHalle[F]lujah, Halle[Am]lujah\nHalle[F]lujah, Halle[C]lu---[G]--[C]jah [G]\n\nYour [C]faith was strong but you [Am]needed proof\nYou [C]saw her bathing [Am]on the roof\nHer [F]beauty and the [G]moonlight over[C]threw you [G]\nShe [C]tied you to a [F]kitchen [G]chair\nShe [Am]broke your throne, and she [F]cut your hair\nAnd [G]from your lips she [E7]drew the Halle[Am]lujah\n\nChorus:\nHalle[F]lujah, Halle[Am]lujah\nHalle[F]lujah, Halle[C]lu---[G]--[C]jah",
+      "created_at": "2026-09-11T06:41:46.918Z",
+      "updated_at": "2026-09-11T06:41:46.918Z"
+    }
+  ],
+  "playlists": [
+    {
+      "id": "taborak-playlist",
+      "title": "🔥 K táboráku a na chatu",
+      "description": "Nejlepší pecky k ohni na kytaru, co všichni znají zpaměti.",
+      "song_ids": [
+        "stanky-brontosauri",
+        "bedna-od-vodopadu"
+      ],
+      "created_at": "2026-09-11T06:41:46.918Z",
+      "updated_at": "2026-09-11T06:41:46.918Z"
+    },
+    {
+      "id": "akustika-world",
+      "title": "🎸 Světová akustika",
+      "description": "Oblíbené mezinárodní akustické hity.",
+      "song_ids": [
+        "wonderwall-oasis",
+        "hallelujah-leonard-cohen"
+      ],
+      "created_at": "2026-09-11T06:41:46.918Z",
+      "updated_at": "2026-09-11T06:41:46.918Z"
+    }
+  ]
+}

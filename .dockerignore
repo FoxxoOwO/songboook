@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+yarn-error.log
+.git
+.gitignore
+.gemini
+tests
+*.md
+*.log
+client/dist
+server/dist
+client/node_modules
+server/node_modules
+.dockerignore

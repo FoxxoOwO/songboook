@@ -1,0 +1,31 @@
+services:
+  songbook:
+    # Pro lokální sestavení odkomentujte sekci build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Oficiální obraz z GitHub Container Registry (FoxxoOwO):
+    image: ghcr.io/foxxoowo/songboook:latest
+    container_name: songbook
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATA_DIR=/app/data
+    volumes:
+      # Perzistentní úložiště pro písně a playlisty (named volume):
+      - songbook_data:/app/data
+      # Alternativně pro uložení do lokální složky na hostiteli můžete použít:
+      # - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  songbook_data:
+    name: songbook_data
