@@ -95,7 +95,7 @@ fun StageModeScreen(
 
     LaunchedEffect(isZooming, fontScale) {
         if (isZooming) {
-            delay(1200)
+            delay(2500)
             isZooming = false
         }
     }
@@ -128,17 +128,6 @@ fun StageModeScreen(
                 isZooming = true
             }
     ) {
-        ZoomLevelBadge(
-            visible = isZooming,
-            fontScale = fontScale,
-            onReset = {
-                fontScale = 1.0f
-                isZooming = true
-            },
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 16.dp)
-        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -205,17 +194,26 @@ fun StageModeScreen(
                             val hasAnyChords = line.segments.any { !it.chord.isNullOrBlank() }
                             val hasAnyLyrics = line.segments.any { it.lyric.isNotBlank() }
 
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Start
-                            ) {
-                                line.segments.forEach { segment ->
-                                    StageChordSegmentView(
-                                        segment = segment,
-                                        isChordOnlyLine = hasAnyChords && !hasAnyLyrics,
-                                        isLyricOnlyLine = !hasAnyChords && hasAnyLyrics,
-                                        fontScale = fontScale
-                                    )
+                            if (!hasAnyChords && hasAnyLyrics) {
+                                Text(
+                                    text = line.rawText,
+                                    fontSize = (22 * fontScale).sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFD4D4D8)
+                                )
+                            } else {
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.Start
+                                ) {
+                                    line.segments.forEach { segment ->
+                                        StageChordSegmentView(
+                                            segment = segment,
+                                            isChordOnlyLine = hasAnyChords && !hasAnyLyrics,
+                                            isLyricOnlyLine = false,
+                                            fontScale = fontScale
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -289,6 +287,19 @@ fun StageModeScreen(
                 }
             }
         }
+
+        // Floating Zoom Indicator (placed after Column and controls so it sits on top in Z-order!)
+        ZoomLevelBadge(
+            visible = isZooming,
+            fontScale = fontScale,
+            onReset = {
+                fontScale = 1.0f
+                isZooming = true
+            },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 16.dp)
+        )
     }
 }
 
@@ -300,7 +311,6 @@ fun StageChordSegmentView(
     fontScale: Float = 1.0f
 ) {
     Column(
-        modifier = Modifier.width(IntrinsicSize.Min),
         horizontalAlignment = Alignment.Start
     ) {
         if (!segment.chord.isNullOrBlank()) {
@@ -320,7 +330,8 @@ fun StageChordSegmentView(
                 text = segment.lyric.ifEmpty { " " },
                 fontSize = (22 * fontScale).sp,
                 fontFamily = FontFamily.Monospace,
-                color = Color(0xFFD4D4D8)
+                color = Color(0xFFD4D4D8),
+                softWrap = false
             )
         }
     }

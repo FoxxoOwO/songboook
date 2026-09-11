@@ -28,6 +28,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import kotlin.math.abs
 
 /**
@@ -70,35 +71,47 @@ fun ZoomLevelBadge(
         visible = visible,
         enter = fadeIn() + scaleIn(),
         exit = fadeOut() + scaleOut(),
-        modifier = modifier
+        modifier = modifier.zIndex(50f)
     ) {
         Surface(
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.92f),
+            color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.95f),
             contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-            shadowElevation = 8.dp,
-            modifier = Modifier.clickable { onReset() }
+            shadowElevation = 12.dp,
+            onClick = onReset
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(
                     Icons.Default.ZoomIn,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(18.dp)
                 )
                 Text(
                     text = "${(fontScale * 100).toInt()}%",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
                 )
                 if (abs(fontScale - 1.0f) > 0.05f) {
-                    Text(
-                        text = "• Reset",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ) {
+                        Text(
+                            text = "Reset",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            ),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             }
         }

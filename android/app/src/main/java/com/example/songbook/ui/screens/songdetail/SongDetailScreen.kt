@@ -107,7 +107,7 @@ fun SongDetailScreen(
 
     LaunchedEffect(isZooming, fontScale) {
         if (isZooming) {
-            delay(1200)
+            delay(2500)
             isZooming = false
         }
     }
@@ -186,17 +186,6 @@ fun SongDetailScreen(
                     isZooming = true
                 }
         ) {
-            ZoomLevelBadge(
-                visible = isZooming,
-                fontScale = fontScale,
-                onReset = {
-                    fontScale = 1.0f
-                    isZooming = true
-                },
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 12.dp)
-            )
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -331,19 +320,30 @@ fun SongDetailScreen(
                                 val hasAnyChords = line.segments.any { !it.chord.isNullOrBlank() }
                                 val hasAnyLyrics = line.segments.any { it.lyric.isNotBlank() }
 
-                                FlowRow(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.Start,
-                                    verticalArrangement = Arrangement.Top
-                                ) {
-                                    line.segments.forEach { segment ->
-                                        ChordLyricSegmentView(
-                                            segment = segment,
-                                            isChordOnlyLine = hasAnyChords && !hasAnyLyrics,
-                                            isLyricOnlyLine = !hasAnyChords && hasAnyLyrics,
-                                            fontScale = fontScale,
-                                            onChordClick = { chord -> selectedChordForDetail = chord }
-                                        )
+                                if (!hasAnyChords && hasAnyLyrics) {
+                                    Text(
+                                        text = line.rawText,
+                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = (16 * fontScale).sp
+                                        ),
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                } else {
+                                    FlowRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.Start,
+                                        verticalArrangement = Arrangement.Top
+                                    ) {
+                                        line.segments.forEach { segment ->
+                                            ChordLyricSegmentView(
+                                                segment = segment,
+                                                isChordOnlyLine = hasAnyChords && !hasAnyLyrics,
+                                                isLyricOnlyLine = false,
+                                                fontScale = fontScale,
+                                                onChordClick = { chord -> selectedChordForDetail = chord }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -443,6 +443,19 @@ fun SongDetailScreen(
                     }
                 }
             }
+
+            // Floating Zoom Indicator (placed after Column and autoscroll so it sits on top in Z-order!)
+            ZoomLevelBadge(
+                visible = isZooming,
+                fontScale = fontScale,
+                onReset = {
+                    fontScale = 1.0f
+                    isZooming = true
+                },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 16.dp)
+            )
         }
     }
 
@@ -487,7 +500,6 @@ fun ChordLyricSegmentView(
     onChordClick: (String) -> Unit
 ) {
     Column(
-        modifier = Modifier.width(IntrinsicSize.Min),
         horizontalAlignment = Alignment.Start
     ) {
         // Chord above word
@@ -521,7 +533,8 @@ fun ChordLyricSegmentView(
                     fontFamily = FontFamily.Monospace,
                     fontSize = (16 * fontScale).sp
                 ),
-                color = MaterialTheme.colorScheme.onBackground
+                color = MaterialTheme.colorScheme.onBackground,
+                softWrap = false
             )
         }
     }
