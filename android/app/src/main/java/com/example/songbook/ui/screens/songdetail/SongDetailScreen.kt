@@ -69,6 +69,7 @@ import com.example.songbook.data.repository.SongRepository
 import com.example.songbook.domain.ChordManager
 import com.example.songbook.domain.ChordSegment
 import com.example.songbook.domain.ParsedLine
+import com.example.songbook.domain.splitIntoWordUnits
 import com.example.songbook.ui.components.ChordDetailBottomSheet
 import com.example.songbook.ui.components.ZoomLevelBadge
 import com.example.songbook.ui.components.pinchToZoom
@@ -330,12 +331,15 @@ fun SongDetailScreen(
                                         color = MaterialTheme.colorScheme.onBackground
                                     )
                                 } else {
+                                    val displaySegments = remember(line.segments) {
+                                        line.segments.flatMap { it.splitIntoWordUnits() }
+                                    }
                                     FlowRow(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.Start,
                                         verticalArrangement = Arrangement.Top
                                     ) {
-                                        line.segments.forEach { segment ->
+                                        displaySegments.forEach { segment ->
                                             ChordLyricSegmentView(
                                                 segment = segment,
                                                 isChordOnlyLine = hasAnyChords && !hasAnyLyrics,

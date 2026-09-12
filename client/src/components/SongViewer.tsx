@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Song, InstrumentType, NotationSystem } from '../types/index.js';
-import { parseSongContent } from '../utils/chordParser.js';
+import { parseSongContent, splitSegmentIntoWordUnits } from '../utils/chordParser.js';
 import { transposeChord } from '../utils/transposer.js';
 import { ChordTooltip } from './ChordTooltip.js';
 import { AutoscrollToolbar } from './AutoscrollToolbar.js';
@@ -396,7 +396,9 @@ export const SongViewer: React.FC<SongViewerProps> = ({
                 isLyricOnlyLine ? 'min-h-[1.4em]' : 'min-h-[2.4em]'
               } py-0.5 leading-none`}
             >
-              {line.segments?.map((seg, segIdx) => {
+              {line.segments
+                ?.flatMap(splitSegmentIntoWordUnits)
+                .map((seg, segIdx) => {
                 const transposedChord = seg.chord
                   ? transposeChord(seg.chord, transposeSemitones, preferFlats, notation)
                   : undefined;

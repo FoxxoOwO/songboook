@@ -78,6 +78,57 @@ class ChordManagerTest {
     }
 
     @Test
+    fun testTwoLineConversionWithPickupLyrics() {
+        val tabWithPickups = """
+            [Verse 1]
+            Few months
+                       Am             C
+                       back, choosing venues
+            A
+              G
+              white and golden wedding theme is fi
+            F
+            nally coming true
+            Where your last
+                           Em
+                           words rip through my heart
+            A
+             Em
+             fake
+        """.trimIndent()
+
+        val converted = ChordManager.convertTwoLineToChordPro(tabWithPickups)
+        assertTrue("Should contain merged Few months line", converted.contains("Few months [Am]back, choosing [C]venues"))
+        assertTrue("Should contain merged A line", converted.contains("A [G]white and golden wedding theme is fi"))
+        assertTrue("Should contain [F]nally", converted.contains("[F]nally coming true"))
+        assertTrue("Should contain merged Where your last line", converted.contains("Where your last [Em]words rip through my heart"))
+        assertTrue("Should contain merged A fake line", converted.contains("A [Em]fake"))
+    }
+
+    @Test
+    fun testIndentedChordProContinuation() {
+        val chordProWithIndent = """
+            Few months
+                      [Am]back, choosing [C]venues
+        """.trimIndent()
+        val converted = ChordManager.convertTwoLineToChordPro(chordProWithIndent)
+        assertEquals("Few months [Am]back, choosing [C]venues", converted.trim())
+    }
+
+    @Test
+    fun testSplitIntoWordUnits() {
+        val segment = ChordSegment("G", "white and golden ")
+        val words = segment.splitIntoWordUnits()
+        assertEquals(3, words.size)
+        assertEquals("G", words[0].chord)
+        assertEquals("white ", words[0].lyric)
+        org.junit.Assert.assertNull(words[1].chord)
+        assertEquals("and ", words[1].lyric)
+        org.junit.Assert.assertNull(words[2].chord)
+        assertEquals("golden ", words[2].lyric)
+    }
+
+    @Test
     fun testFormatBaseUrl() {
         assertEquals("http://192.168.1.50:3000", com.example.songbook.data.remote.ServerApiClient.formatBaseUrl("192.168.1.50:3000"))
         assertEquals("http://192.168.1.50:3000", com.example.songbook.data.remote.ServerApiClient.formatBaseUrl("http://192.168.1.50:3000/"))

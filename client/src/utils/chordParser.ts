@@ -51,6 +51,20 @@ export function isChordLine(line: string): boolean {
 }
 
 /**
+ * Splits a ChordSegment into word-level sub-segments so multi-word lyrics can wrap smoothly.
+ */
+export function splitSegmentIntoWordUnits(segment: ChordSegment): ChordSegment[] {
+  if (!segment.lyric) return [segment];
+  const wordMatches = segment.lyric.match(/\S+\s*|\s+/g);
+  if (!wordMatches || wordMatches.length <= 1) return [segment];
+
+  return wordMatches.map((word, idx) => ({
+    chord: idx === 0 ? segment.chord : undefined,
+    lyric: word,
+  }));
+}
+
+/**
  * Converts two-line format (chords above lyrics) into ChordPro format [Am]lyric
  */
 export function convertTwoLineToChordPro(text: string): string {
@@ -86,19 +100,48 @@ export function convertTwoLineToChordPro(text: string): string {
           }
 
           if (chordsWithIndex.length > 0) {
-            let merged = '';
+            const chordIndent = currentLine.match(/^ */)?.[0].length ?? 0;
+            const lyricIndent = nextLine.match(/^ */)?.[0].length ?? 0;
+            const prevLine = result.length > 0 ? result[result.length - 1].trim() : null;
+
+            // Check if the previous line was a short pick-up lyric line that belongs with this line
+            const isPrevLyric =
+              prevLine !== null &&
+              (!isChordLine(prevLine) || prevLine === 'A') &&
+              !isSectionHeaderLine(prevLine) &&
+              !prevLine.startsWith('{') &&
+              prevLine.length > 0;
+
+            const isPickupContinuation =
+              isPrevLyric &&
+              prevLine !== null &&
+              (chordIndent >= 1 || lyricIndent >= 1) &&
+              (lyricIndent >= prevLine.length - 2 || chordIndent >= prevLine.length - 2);
+
+            let prefix = '';
+            if (isPickupContinuation && prevLine !== null) {
+              result.pop();
+              prefix = `${prevLine} `;
+            }
+
+            const cleanNextLine = isPickupContinuation ? nextLine.trimStart() : nextLine;
+
+            let merged = prefix;
             let lastLyricIdx = 0;
 
             for (const { chord, index } of chordsWithIndex) {
-              const targetIndex = Math.min(Math.max(0, index), nextLine.length);
-              if (targetIndex > lastLyricIdx) {
-                merged += nextLine.slice(lastLyricIdx, targetIndex);
-                lastLyricIdx = targetIndex;
+              const effectiveIndex = isPickupContinuation
+                ? Math.min(Math.max(0, index - chordIndent), cleanNextLine.length)
+                : Math.min(Math.max(0, index), cleanNextLine.length);
+
+              if (effectiveIndex > lastLyricIdx) {
+                merged += cleanNextLine.slice(lastLyricIdx, effectiveIndex);
+                lastLyricIdx = effectiveIndex;
               }
               merged += `[${chord}]`;
             }
-            if (lastLyricIdx < nextLine.length) {
-              merged += nextLine.slice(lastLyricIdx);
+            if (lastLyricIdx < cleanNextLine.length) {
+              merged += cleanNextLine.slice(lastLyricIdx);
             }
 
             result.push(merged);
@@ -107,6 +150,30 @@ export function convertTwoLineToChordPro(text: string): string {
           }
         }
       }
+    }
+
+    // Also check if currentLine is an indented line following a pick-up line that was split
+    const prevLine = result.length > 0 ? result[result.length - 1].trim() : null;
+    const currentIndent = currentLine.match(/^ */)?.[0].length ?? 0;
+    const isPrevLyric =
+      prevLine !== null &&
+      (!isChordLine(prevLine) || prevLine === 'A') &&
+      !isSectionHeaderLine(prevLine) &&
+      !prevLine.startsWith('{') &&
+      prevLine.length > 0;
+
+    if (
+      isPrevLyric &&
+      prevLine !== null &&
+      currentIndent >= 1 &&
+      currentIndent >= prevLine.length - 2 &&
+      !isSectionHeaderLine(currentLine) &&
+      !currentLine.trim().startsWith('{')
+    ) {
+      result.pop();
+      result.push(`${prevLine} ${currentLine.trim()}`);
+      i++;
+      continue;
     }
 
     result.push(currentLine);

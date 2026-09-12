@@ -5,6 +5,19 @@ data class ChordSegment(
     val lyric: String = ""
 )
 
+fun ChordSegment.splitIntoWordUnits(): List<ChordSegment> {
+    if (lyric.isEmpty()) return listOf(this)
+    val wordMatches = Regex("""\S+\s*|\s+""").findAll(lyric).toList()
+    if (wordMatches.size <= 1) return listOf(this)
+
+    return wordMatches.mapIndexed { index, match ->
+        ChordSegment(
+            chord = if (index == 0) this.chord else null,
+            lyric = match.value
+        )
+    }
+}
+
 sealed class ParsedLine {
     data object Empty : ParsedLine()
     data class Directive(val name: String, val value: String, val rawText: String) : ParsedLine()
@@ -145,19 +158,57 @@ object ChordManager {
                         }
 
                         if (chordsWithIndex.isNotEmpty()) {
+                            val chordIndent = currentLine.takeWhile { it == ' ' }.length
+                            val lyricIndent = nextLine.takeWhile { it == ' ' }.length
+                            val prevLine = result.lastOrNull()?.trim()
+
+                            // Check if the previous line was a short pick-up lyric line that belongs with this line.
+                            // Note: 'A' is both a chord and the English article "A", so if followed by a chord line, it's a pick-up lyric.
+                            val isPrevLyric = prevLine != null &&
+                                (!isChordLine(prevLine) || prevLine == "A") &&
+                                !isSectionHeaderLine(prevLine) &&
+                                !prevLine.startsWith("{") &&
+                                prevLine.isNotEmpty()
+
+                            val isPickupContinuation = isPrevLyric && prevLine != null &&
+                                (chordIndent >= 1 || lyricIndent >= 1) &&
+                                (lyricIndent >= prevLine.length - 2 || chordIndent >= prevLine.length - 2)
+
+                            var prefix = ""
+                            if (isPickupContinuation && prevLine != null) {
+                                result.removeAt(result.size - 1)
+                                prefix = "$prevLine "
+                            }
+
+                            val cleanNextLine = if (isPickupContinuation) {
+                                nextLine.trimStart()
+                            } else {
+                                nextLine
+                            }
+
                             val merged = StringBuilder()
+                            if (prefix.isNotEmpty()) {
+                                merged.append(prefix)
+                            }
+
                             var lastLyricIdx = 0
 
                             for ((chord, index) in chordsWithIndex) {
-                                val targetIndex = index.coerceIn(0, nextLine.length)
-                                if (targetIndex > lastLyricIdx) {
-                                    merged.append(nextLine.substring(lastLyricIdx, targetIndex))
-                                    lastLyricIdx = targetIndex
+                                val effectiveIndex = if (isPickupContinuation) {
+                                    val relIndex = (index - chordIndent).coerceAtLeast(0)
+                                    relIndex.coerceIn(0, cleanNextLine.length)
+                                } else {
+                                    index.coerceIn(0, cleanNextLine.length)
+                                }
+
+                                if (effectiveIndex > lastLyricIdx) {
+                                    merged.append(cleanNextLine.substring(lastLyricIdx, effectiveIndex))
+                                    lastLyricIdx = effectiveIndex
                                 }
                                 merged.append("[$chord]")
                             }
-                            if (lastLyricIdx < nextLine.length) {
-                                merged.append(nextLine.substring(lastLyricIdx))
+                            if (lastLyricIdx < cleanNextLine.length) {
+                                merged.append(cleanNextLine.substring(lastLyricIdx))
                             }
 
                             result.add(merged.toString())
@@ -166,6 +217,27 @@ object ChordManager {
                         }
                     }
                 }
+            }
+
+            // Also check if currentLine is an indented line following a pick-up line that was split
+            val prevLine = result.lastOrNull()?.trim()
+            val currentIndent = currentLine.takeWhile { it == ' ' }.length
+            val isPrevLyric = prevLine != null &&
+                (!isChordLine(prevLine) || prevLine == "A") &&
+                !isSectionHeaderLine(prevLine) &&
+                !prevLine.startsWith("{") &&
+                prevLine.isNotEmpty()
+            if (isPrevLyric &&
+                prevLine != null &&
+                currentIndent >= 1 &&
+                currentIndent >= prevLine.length - 2 &&
+                !isSectionHeaderLine(currentLine) &&
+                !currentLine.trim().startsWith("{")
+            ) {
+                result.removeAt(result.size - 1)
+                result.add("$prevLine ${currentLine.trim()}")
+                i++
+                continue
             }
 
             result.add(currentLine)

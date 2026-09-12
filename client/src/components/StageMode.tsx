@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Song } from '../types/index.js';
-import { parseSongContent } from '../utils/chordParser.js';
+import { parseSongContent, splitSegmentIntoWordUnits } from '../utils/chordParser.js';
 import { transposeChord } from '../utils/transposer.js';
 import { ChordTooltip } from './ChordTooltip.js';
 import {
@@ -196,7 +196,9 @@ export const StageMode: React.FC<StageModeProps> = ({
                 isLyricOnlyLine ? 'min-h-[1.5em]' : 'min-h-[2.5em]'
               } py-0.5`}
             >
-              {line.segments?.map((seg, segIdx) => {
+              {line.segments
+                ?.flatMap(splitSegmentIntoWordUnits)
+                .map((seg, segIdx) => {
                 const transposedChord = seg.chord
                   ? transposeChord(seg.chord, transpose, false, 'international')
                   : undefined;

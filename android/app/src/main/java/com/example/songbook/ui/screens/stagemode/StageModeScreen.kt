@@ -53,6 +53,7 @@ import com.example.songbook.data.repository.SongRepository
 import com.example.songbook.domain.ChordManager
 import com.example.songbook.domain.ChordSegment
 import com.example.songbook.domain.ParsedLine
+import com.example.songbook.domain.splitIntoWordUnits
 import com.example.songbook.ui.components.ZoomLevelBadge
 import com.example.songbook.ui.components.pinchToZoom
 import kotlinx.coroutines.delay
@@ -202,11 +203,14 @@ fun StageModeScreen(
                                     color = Color(0xFFD4D4D8)
                                 )
                             } else {
+                                val displaySegments = remember(line.segments) {
+                                    line.segments.flatMap { it.splitIntoWordUnits() }
+                                }
                                 FlowRow(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.Start
                                 ) {
-                                    line.segments.forEach { segment ->
+                                    displaySegments.forEach { segment ->
                                         StageChordSegmentView(
                                             segment = segment,
                                             isChordOnlyLine = hasAnyChords && !hasAnyLyrics,
