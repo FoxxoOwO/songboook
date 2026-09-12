@@ -1,5 +1,6 @@
 package com.example.songbook
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import com.example.songbook.theme.SongbookTheme
 
 class MainActivity : ComponentActivity() {
@@ -20,8 +22,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
+            val context = LocalContext.current
+            val prefs = remember { context.getSharedPreferences("songbook_prefs", Context.MODE_PRIVATE) }
             val systemInDark = isSystemInDarkTheme()
-            var isDarkMode by remember { mutableStateOf(systemInDark) }
+            var isDarkMode by remember {
+                mutableStateOf(
+                    if (prefs.contains("is_dark_mode")) {
+                        prefs.getBoolean("is_dark_mode", systemInDark)
+                    } else {
+                        systemInDark
+                    }
+                )
+            }
 
             SongbookTheme(darkTheme = isDarkMode) {
                 Surface(
@@ -30,7 +42,11 @@ class MainActivity : ComponentActivity() {
                 ) {
                     MainNavigation(
                         isDarkMode = isDarkMode,
-                        onToggleDarkMode = { isDarkMode = !isDarkMode }
+                        onToggleDarkMode = {
+                            val newMode = !isDarkMode
+                            isDarkMode = newMode
+                            prefs.edit().putBoolean("is_dark_mode", newMode).apply()
+                        }
                     )
                 }
             }
