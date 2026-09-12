@@ -1,6 +1,7 @@
 package com.example.songbook.domain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -133,5 +134,80 @@ class ChordManagerTest {
         assertEquals("http://192.168.1.50:3000", com.example.songbook.data.remote.ServerApiClient.formatBaseUrl("192.168.1.50:3000"))
         assertEquals("http://192.168.1.50:3000", com.example.songbook.data.remote.ServerApiClient.formatBaseUrl("http://192.168.1.50:3000/"))
         assertEquals("https://my-songbook.cz", com.example.songbook.data.remote.ServerApiClient.formatBaseUrl("https://my-songbook.cz/"))
+    }
+
+    @Test
+    fun testSnapCenteredChords() {
+        val input = "ve[C]nues and lo[C]ved and fi[F]nally and sl[F]ipping and di[F]stant but neče[Am]ká"
+        val expected = "[C]venues and [C]loved and [F]finally and [F]slipping and [F]distant but neče[Am]ká"
+        assertEquals(expected, ChordManager.snapCenteredChords(input))
+    }
+
+    @Test
+    fun testNormalizeSongLinesHealing() {
+        val broken = """
+            A [G]white and golden wedding theme is fi-
+            [F]nally coming true
+            But that love is getting blurry and you're sl
+            [F]ipping out of view
+            Where your last
+            words rip through my heart
+        """.trimIndent()
+
+        val healed = ChordManager.normalizeSongLines(broken)
+        assertTrue("Should heal hyphenated line", healed.contains("wedding theme is [F]finally coming true"))
+        assertTrue("Should heal mid-word split line", healed.contains("blurry and you're [F]slipping out of view"))
+        assertTrue("Should heal lowercase continuation line", healed.contains("Where your last words rip through my heart"))
+    }
+
+    @Test
+    fun testSameQuestionsVerseAndChorusConversion() {
+        val tab = """
+            [Verse 1]
+                       [Am]             [C]
+            Few months back, choosing venues
+              [G]                                 [F]
+            A white and golden wedding theme is finally coming true
+                     [Am]          [C]
+            You were mine, and I loved you
+                     [G]                                 [F]
+            But that love is getting blurry and you're slipping out of view
+            
+            [Chorus]
+                    [C]
+            Well, I hope this ain't the part
+                            [Em]
+            Where your last words rip through my heart
+                       [Am]
+            And then I lose you
+                       [F]
+            And then I have to
+                  [C]
+            Start over with some small talk
+              [Em]
+            A fake smile at the bar
+        """.trimIndent()
+
+        val parsed = ChordManager.parseSongContent(tab)
+        val chordLyricLines = parsed.filterIsInstance<ParsedLine.ChordLyrics>().map { it.rawText }
+
+        assertTrue("Should snap [C]venues", chordLyricLines.any { it.contains("[C]venues") })
+        assertFalse("Should not contain ve[C]nues", chordLyricLines.any { it.contains("ve[C]nues") })
+
+        assertTrue("Should snap [F]finally", chordLyricLines.any { it.contains("[F]finally") })
+        assertFalse("Should not contain fi[F]nally", chordLyricLines.any { it.contains("fi[F]nally") })
+
+        assertTrue("Should snap [C]loved", chordLyricLines.any { it.contains("[C]loved") })
+        assertFalse("Should not contain lo[C]ved", chordLyricLines.any { it.contains("lo[C]ved") })
+
+        assertTrue("Should snap [F]slipping", chordLyricLines.any { it.contains("[F]slipping") })
+        assertFalse("Should not contain sl[F]ipping", chordLyricLines.any { it.contains("sl[F]ipping") })
+
+        assertTrue("Chorus line 1", chordLyricLines.any { it.contains("Well, I [C]hope this ain't the part") })
+        assertTrue("Chorus line 2", chordLyricLines.any { it.contains("Where your last [Em]words rip through my heart") })
+        assertTrue("Chorus line 3", chordLyricLines.any { it.contains("And then I [Am]lose you") })
+        assertTrue("Chorus line 4", chordLyricLines.any { it.contains("And then I [F]have to") })
+        assertTrue("Chorus line 5", chordLyricLines.any { it.contains("Start [C]over with some small talk") })
+        assertTrue("Chorus line 6", chordLyricLines.any { it.contains("A [Em]fake smile at the bar") })
     }
 }

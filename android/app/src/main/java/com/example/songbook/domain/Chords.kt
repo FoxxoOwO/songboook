@@ -201,9 +201,24 @@ object ChordManager {
                                     index.coerceIn(0, cleanNextLine.length)
                                 }
 
-                                if (effectiveIndex > lastLyricIdx) {
-                                    merged.append(cleanNextLine.substring(lastLyricIdx, effectiveIndex))
-                                    lastLyricIdx = effectiveIndex
+                                var snappedIndex = effectiveIndex
+                                if (snappedIndex in 1 until cleanNextLine.length &&
+                                    cleanNextLine[snappedIndex].isLetterOrDigit() &&
+                                    cleanNextLine[snappedIndex - 1].isLetterOrDigit()
+                                ) {
+                                    var wordStart = snappedIndex
+                                    while (wordStart > 0 && cleanNextLine[wordStart - 1].isLetterOrDigit()) {
+                                        wordStart--
+                                    }
+                                    if (snappedIndex - wordStart <= 2) {
+                                        snappedIndex = wordStart
+                                    }
+                                }
+
+                                val targetIdx = maxOf(snappedIndex, lastLyricIdx)
+                                if (targetIdx > lastLyricIdx) {
+                                    merged.append(cleanNextLine.substring(lastLyricIdx, targetIdx))
+                                    lastLyricIdx = targetIdx
                                 }
                                 merged.append("[$chord]")
                             }
@@ -246,8 +261,66 @@ object ChordManager {
         return result.joinToString("\n")
     }
 
+    private val CHORD_CENTERING_REGEX = Regex("""(^|[\s\p{P}])([\p{L}]{1,2})\[([A-Ga-gHh][^\]]*)\]([\p{L}]+)""")
+
+    fun snapCenteredChords(text: String): String {
+        return text.replace(CHORD_CENTERING_REGEX) { match ->
+            val prefix = match.groupValues[1]
+            val wordStart = match.groupValues[2]
+            val chord = match.groupValues[3]
+            val wordEnd = match.groupValues[4]
+            "$prefix[$chord]$wordStart$wordEnd"
+        }
+    }
+
+    fun normalizeSongLines(text: String): String {
+        val lines = text.lines()
+        val result = mutableListOf<String>()
+        var i = 0
+
+        while (i < lines.size) {
+            var line = lines[i]
+
+            while (i + 1 < lines.size) {
+                val nextLine = lines[i + 1].trim()
+                val currentTrimmed = line.trim()
+                if (nextLine.isEmpty() || currentTrimmed.isEmpty()) break
+                if (nextLine.startsWith("{") || isSectionHeaderLine(nextLine)) break
+                if (isChordLine(nextLine)) break
+
+                val strippedNext = nextLine.replace(Regex("""\[[^\]]+\]"""), "").trim()
+                val nextStartsWithLower = strippedNext.isNotEmpty() && strippedNext.first().isLowerCase()
+                val endsWithHyphen = currentTrimmed.endsWith("-")
+                val endsWithPunct = currentTrimmed.isNotEmpty() && currentTrimmed.last() in ".!?:"
+
+                val trailingLetters = currentTrimmed.takeLastWhile { it.isLetter() }.length
+                val isMidWordSplit = nextLine.startsWith("[") && trailingLetters in 1..2
+
+                if (endsWithHyphen) {
+                    line = line.trimEnd().removeSuffix("-") + nextLine
+                    i++
+                } else if (nextStartsWithLower && !endsWithPunct) {
+                    line = if (isMidWordSplit) {
+                        line.trimEnd() + nextLine
+                    } else {
+                        line.trimEnd() + " " + nextLine
+                    }
+                    i++
+                } else {
+                    break
+                }
+            }
+
+            result.add(snapCenteredChords(line))
+            i++
+        }
+
+        return result.joinToString("\n")
+    }
+
     fun parseSongContent(content: String, semitones: Int = 0, preferFlats: Boolean = false): List<ParsedLine> {
-        val normalized = convertTwoLineToChordPro(content)
+        val converted = convertTwoLineToChordPro(content)
+        val normalized = normalizeSongLines(converted)
 
         return normalized.lines().map { line ->
             val trimmed = line.trim()

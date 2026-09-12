@@ -314,19 +314,26 @@ fun StageChordSegmentView(
     isLyricOnlyLine: Boolean = false,
     fontScale: Float = 1.0f
 ) {
+    val chordSlotHeight = (28 * fontScale).dp
+
     Column(
         horizontalAlignment = Alignment.Start
     ) {
         if (!segment.chord.isNullOrBlank()) {
-            Text(
-                text = segment.chord,
-                fontSize = (20 * fontScale).sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                color = Color.White
-            )
+            Box(
+                modifier = Modifier.height(chordSlotHeight),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = segment.chord,
+                    fontSize = (20 * fontScale).sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    color = Color.White
+                )
+            }
         } else if (!isLyricOnlyLine) {
-            Spacer(modifier = Modifier.height((24 * fontScale).dp))
+            Spacer(modifier = Modifier.height(chordSlotHeight))
         }
 
         if (!isChordOnlyLine) {

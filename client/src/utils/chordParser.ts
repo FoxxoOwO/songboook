@@ -134,9 +134,26 @@ export function convertTwoLineToChordPro(text: string): string {
                 ? Math.min(Math.max(0, index - chordIndent), cleanNextLine.length)
                 : Math.min(Math.max(0, index), cleanNextLine.length);
 
-              if (effectiveIndex > lastLyricIdx) {
-                merged += cleanNextLine.slice(lastLyricIdx, effectiveIndex);
-                lastLyricIdx = effectiveIndex;
+              let snappedIndex = effectiveIndex;
+              if (
+                snappedIndex > 0 &&
+                snappedIndex < cleanNextLine.length &&
+                /\p{L}|\p{N}/u.test(cleanNextLine[snappedIndex]) &&
+                /\p{L}|\p{N}/u.test(cleanNextLine[snappedIndex - 1])
+              ) {
+                let wordStart = snappedIndex;
+                while (wordStart > 0 && /\p{L}|\p{N}/u.test(cleanNextLine[wordStart - 1])) {
+                  wordStart--;
+                }
+                if (snappedIndex - wordStart <= 2) {
+                  snappedIndex = wordStart;
+                }
+              }
+
+              const targetIdx = Math.max(snappedIndex, lastLyricIdx);
+              if (targetIdx > lastLyricIdx) {
+                merged += cleanNextLine.slice(lastLyricIdx, targetIdx);
+                lastLyricIdx = targetIdx;
               }
               merged += `[${chord}]`;
             }
@@ -183,6 +200,53 @@ export function convertTwoLineToChordPro(text: string): string {
   return result.join('\n');
 }
 
+const CHORD_CENTERING_REGEX = /(^|[\s\p{P}])([\p{L}]{1,2})\[([A-Ga-gHh][^\]]*)\]([\p{L}]+)/gu;
+
+export function snapCenteredChords(text: string): string {
+  return text.replace(CHORD_CENTERING_REGEX, '$1[$3]$2$4');
+}
+
+export function normalizeSongLines(text: string): string {
+  const lines = text.split('\n');
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    let line = lines[i];
+
+    while (i + 1 < lines.length) {
+      const nextLine = lines[i + 1].trim();
+      const currentTrimmed = line.trim();
+      if (!nextLine || !currentTrimmed) break;
+      if (nextLine.startsWith('{') || isSectionHeaderLine(nextLine)) break;
+      if (isChordLine(nextLine)) break;
+
+      const strippedNext = nextLine.replace(/\[[^\]]+\]/g, '').trim();
+      const nextStartsWithLower = /^[\p{Ll}]/u.test(strippedNext);
+      const endsWithHyphen = currentTrimmed.endsWith('-');
+      const endsWithPunct = /[.!?:]$/.test(currentTrimmed);
+
+      const trailingLetters = (currentTrimmed.match(/[\p{L}]+$/u)?.[0] || '').length;
+      const isMidWordSplit = nextLine.startsWith('[') && trailingLetters >= 1 && trailingLetters <= 2;
+
+      if (endsWithHyphen) {
+        line = line.trimEnd().replace(/-$/, '') + nextLine;
+        i++;
+      } else if (nextStartsWithLower && !endsWithPunct) {
+        line = isMidWordSplit ? line.trimEnd() + nextLine : line.trimEnd() + ' ' + nextLine;
+        i++;
+      } else {
+        break;
+      }
+    }
+
+    result.push(snapCenteredChords(line));
+    i++;
+  }
+
+  return result.join('\n');
+}
+
 /**
  * Parses a single line in ChordPro format into ChordSegments
  */
@@ -222,7 +286,8 @@ export function parseChordProLine(line: string): ChordSegment[] {
  * Parses full song content into structured lines for rendering
  */
 export function parseSongContent(content: string): ParsedLine[] {
-  const normalized = convertTwoLineToChordPro(content);
+  const converted = convertTwoLineToChordPro(content);
+  const normalized = normalizeSongLines(converted);
 
   const lines = normalized.split('\n');
   return lines.map((line) => {

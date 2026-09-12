@@ -503,6 +503,8 @@ fun ChordLyricSegmentView(
     fontScale: Float = 1.0f,
     onChordClick: (String) -> Unit
 ) {
+    val chordSlotHeight = (22 * fontScale).dp
+
     Column(
         horizontalAlignment = Alignment.Start
     ) {
@@ -510,10 +512,12 @@ fun ChordLyricSegmentView(
         if (!segment.chord.isNullOrBlank()) {
             Box(
                 modifier = Modifier
+                    .height(chordSlotHeight)
                     .clip(RoundedCornerShape(4.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .clickable { onChordClick(segment.chord) }
-                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = segment.chord,
@@ -526,7 +530,7 @@ fun ChordLyricSegmentView(
                 )
             }
         } else if (!isLyricOnlyLine) {
-            Spacer(modifier = Modifier.height((18 * fontScale).dp))
+            Spacer(modifier = Modifier.height(chordSlotHeight))
         }
 
         // Lyric text below
