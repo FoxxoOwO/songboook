@@ -40,8 +40,12 @@ export const AutoscrollToolbar: React.FC<AutoscrollToolbarProps> = ({
       <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-900 px-2.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800">
         <span className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mr-1 hidden sm:inline">Rychlost:</span>
         <button
-          onClick={() => onChangeSpeed(Math.max(1, speed - 2))}
-          className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+          onClick={() => {
+            const newSpeed = speed <= 1 ? 1 : speed <= 10 ? speed - 1 : Math.max(10, Math.floor((speed - 1) / 5) * 5);
+            onChangeSpeed(newSpeed);
+          }}
+          disabled={speed <= 1}
+          className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
           title="Zpomalit"
         >
           <Minus className="w-3.5 h-3.5" />
@@ -57,8 +61,12 @@ export const AutoscrollToolbar: React.FC<AutoscrollToolbarProps> = ({
         />
 
         <button
-          onClick={() => onChangeSpeed(Math.min(60, speed + 2))}
-          className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+          onClick={() => {
+            const newSpeed = speed < 10 ? speed + 1 : Math.min(60, speed + 5);
+            onChangeSpeed(newSpeed);
+          }}
+          disabled={speed >= 60}
+          className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
           title="Zrychlit"
         >
           <Plus className="w-3.5 h-3.5" />

@@ -5,9 +5,11 @@ data class ChordSegment(
     val lyric: String = ""
 )
 
+private val WORD_SPLIT_REGEX = Regex("""\S+\s*|\s+""")
+
 fun ChordSegment.splitIntoWordUnits(): List<ChordSegment> {
     if (lyric.isEmpty()) return listOf(this)
-    val wordMatches = Regex("""\S+\s*|\s+""").findAll(lyric).toList()
+    val wordMatches = WORD_SPLIT_REGEX.findAll(lyric).toList()
     if (wordMatches.size <= 1) return listOf(this)
 
     return wordMatches.mapIndexed { index, match ->
@@ -22,7 +24,11 @@ sealed class ParsedLine {
     data object Empty : ParsedLine()
     data class Directive(val name: String, val value: String, val rawText: String) : ParsedLine()
     data class SectionHeader(val rawText: String) : ParsedLine()
-    data class ChordLyrics(val segments: List<ChordSegment>, val rawText: String) : ParsedLine()
+    data class ChordLyrics(
+        val segments: List<ChordSegment>,
+        val rawText: String,
+        val displaySegments: List<ChordSegment> = segments.flatMap { it.splitIntoWordUnits() }
+    ) : ParsedLine()
 }
 
 object ChordManager {
@@ -46,6 +52,14 @@ object ChordManager {
 
     private val CHORD_REGEX = Regex("""^([A-Ga-gHh][#b]?)([^/]*)(?:/([A-Ga-gHh][#b]?))?$""")
     private val CHORD_CANDIDATE_REGEX = Regex("""^[A-Ga-gHh][#b]?(?:m|min|maj|dim|aug|sus\d?|\d|\+|add\d?)*(?:/[A-Ga-gHh][#b]?)?$""")
+    private val SECTION_HEADER_REGEX = Regex(
+        """^(?:R:|Ref(?:r[eé]n)?.*|Chorus.*|Verse\s*\d+.*|Sloka\s*\d+.*|Bridge.*|Outro.*|Intro.*|Solo.*|Pre-Chorus.*|\d+\..*)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val WHITESPACE_REGEX = Regex("""\s+""")
+    private val CHORD_PRO_BRACKET_REGEX = Regex("""\[([^\]]+)\]""")
+    private val CHORD_LINE_MATCHES_REGEX = Regex("""(?:\[([^\]]+)\]|\S+)""")
+    private val STRIP_BRACKETS_REGEX = Regex("""\[[^\]]+\]""")
 
     fun isChord(token: String): Boolean {
         if (token.isBlank()) return false
@@ -60,10 +74,7 @@ object ChordManager {
         } else {
             trimmed
         }
-        return Regex(
-            """^(?:R:|Ref(?:r[eé]n)?.*|Chorus.*|Verse\s*\d+.*|Sloka\s*\d+.*|Bridge.*|Outro.*|Intro.*|Solo.*|Pre-Chorus.*|\d+\..*)$""",
-            RegexOption.IGNORE_CASE
-        ).matches(clean)
+        return SECTION_HEADER_REGEX.matches(clean)
     }
 
     fun isChordLine(line: String): Boolean {
@@ -71,7 +82,7 @@ object ChordManager {
         if (trimmed.isEmpty()) return false
         if (isSectionHeaderLine(trimmed)) return false
         if (trimmed.startsWith("{") && trimmed.endsWith("}")) return false
-        val tokens = trimmed.split(Regex("""\s+""")).filter { it.isNotEmpty() }
+        val tokens = trimmed.split(WHITESPACE_REGEX).filter { it.isNotEmpty() }
         if (tokens.isEmpty()) return false
         val chordCount = tokens.count { isChord(it) }
         return (chordCount.toDouble() / tokens.size) >= 0.5
@@ -107,11 +118,10 @@ object ChordManager {
 
     fun parseChordProLine(line: String, semitones: Int = 0, preferFlats: Boolean = false): List<ChordSegment> {
         val segments = mutableListOf<ChordSegment>()
-        val regex = Regex("""\[([^\]]+)\]""")
         var lastIndex = 0
         var currentChord: String? = null
 
-        val matches = regex.findAll(line)
+        val matches = CHORD_PRO_BRACKET_REGEX.findAll(line)
         for (match in matches) {
             val textBefore = line.substring(lastIndex, match.range.first)
             if (textBefore.isNotEmpty() || currentChord != null) {
@@ -148,7 +158,7 @@ object ChordManager {
                 if (nextNonEmptyIdx < lines.size) {
                     val nextLine = lines[nextNonEmptyIdx]
                     if (!isChordLine(nextLine) && !isSectionHeaderLine(nextLine) && !nextLine.trim().startsWith("{")) {
-                        val chordMatches = Regex("""(?:\[([^\]]+)\]|\S+)""").findAll(currentLine)
+                        val chordMatches = CHORD_LINE_MATCHES_REGEX.findAll(currentLine)
                         val chordsWithIndex = mutableListOf<Pair<String, Int>>()
                         for (match in chordMatches) {
                             val clean = match.value.replace("[", "").replace("]", "").replace("(", "").replace(")", "").trim()
@@ -288,7 +298,7 @@ object ChordManager {
                 if (nextLine.startsWith("{") || isSectionHeaderLine(nextLine)) break
                 if (isChordLine(nextLine)) break
 
-                val strippedNext = nextLine.replace(Regex("""\[[^\]]+\]"""), "").trim()
+                val strippedNext = nextLine.replace(STRIP_BRACKETS_REGEX, "").trim()
                 val nextStartsWithLower = strippedNext.isNotEmpty() && strippedNext.first().isLowerCase()
                 val endsWithHyphen = currentTrimmed.endsWith("-")
                 val endsWithPunct = currentTrimmed.isNotEmpty() && currentTrimmed.last() in ".!?:"

@@ -36,12 +36,14 @@ export const StageMode: React.FC<StageModeProps> = ({
   const activeSong = songs[currentIndex] || songs[0];
   const scrollAnimRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
+  const scrollAccumulatorRef = useRef<number>(0);
 
   useEffect(() => {
     if (activeSong) {
       setScrollSpeed(activeSong.autoscroll_speed || 20);
       setTranspose(0);
       setIsScrolling(false);
+      scrollAccumulatorRef.current = 0;
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
   }, [currentIndex, activeSong]);
@@ -49,16 +51,23 @@ export const StageMode: React.FC<StageModeProps> = ({
   useEffect(() => {
     if (!isScrolling) {
       if (scrollAnimRef.current) cancelAnimationFrame(scrollAnimRef.current);
+      scrollAccumulatorRef.current = 0;
       return;
     }
 
     const step = (timestamp: number) => {
       if (!lastTimeRef.current) lastTimeRef.current = timestamp;
-      const deltaTime = (timestamp - lastTimeRef.current) / 1000;
+      const deltaTime = Math.min((timestamp - lastTimeRef.current) / 1000, 0.1);
       lastTimeRef.current = timestamp;
 
       const pxPerSec = scrollSpeed * 1.8;
-      window.scrollBy(0, pxPerSec * deltaTime);
+      scrollAccumulatorRef.current += pxPerSec * deltaTime;
+
+      if (scrollAccumulatorRef.current >= 1) {
+        const pixelsToScroll = Math.floor(scrollAccumulatorRef.current);
+        scrollAccumulatorRef.current -= pixelsToScroll;
+        window.scrollBy(0, pixelsToScroll);
+      }
 
       if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 5) {
         setIsScrolling(false);
@@ -254,6 +263,25 @@ export const StageMode: React.FC<StageModeProps> = ({
           <button
             onClick={() => setTranspose((t) => t + 1)}
             className="w-5 h-5 flex items-center justify-center font-bold text-zinc-300 hover:text-white"
+          >
+            +
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded-xl">
+          <span className="text-zinc-400 mr-1">R:</span>
+          <button
+            onClick={() => setScrollSpeed((s) => (s <= 1 ? 1 : s <= 10 ? s - 1 : Math.max(10, Math.floor((s - 1) / 5) * 5)))}
+            disabled={scrollSpeed <= 1}
+            className="px-1 font-bold text-zinc-300 hover:text-white disabled:opacity-40"
+          >
+            -
+          </button>
+          <span className="font-mono text-zinc-200 min-w-5 text-center">{scrollSpeed}</span>
+          <button
+            onClick={() => setScrollSpeed((s) => (s < 10 ? s + 1 : Math.min(60, s + 5)))}
+            disabled={scrollSpeed >= 60}
+            className="px-1 font-bold text-zinc-300 hover:text-white disabled:opacity-40"
           >
             +
           </button>

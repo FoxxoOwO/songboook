@@ -16,14 +16,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
@@ -40,11 +43,13 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -103,16 +108,33 @@ fun StageModeScreen(
 
     val scrollState = rememberScrollState()
     var isAutoscrolling by remember { mutableStateOf(false) }
-    var speed by remember { mutableIntStateOf(song.autoscroll_speed.coerceIn(5, 60)) }
+    var speed by remember { mutableIntStateOf(song.autoscroll_speed.coerceIn(1, 60)) }
 
-    LaunchedEffect(isAutoscrolling, speed) {
-        while (isAutoscrolling) {
-            delay(50)
-            val step = (speed * 0.05f).toInt().coerceAtLeast(1)
-            scrollState.scrollTo((scrollState.value + step).coerceAtMost(scrollState.maxValue))
-            if (scrollState.value >= scrollState.maxValue) {
-                isAutoscrolling = false
+    LaunchedEffect(song.id) {
+        speed = song.autoscroll_speed.coerceIn(1, 60)
+        isAutoscrolling = false
+    }
+
+    // Smooth per-frame autoscroll loop (60 / 120 FPS vsync synchronized)
+    val density = LocalDensity.current
+    LaunchedEffect(isAutoscrolling, speed, density) {
+        if (!isAutoscrolling) return@LaunchedEffect
+        val pxPerSec = with(density) { (speed * 1.8f).dp.toPx() }
+        var lastNanos = 0L
+        scrollState.scroll(MutatePriority.UserInput) {
+            while (isAutoscrolling && scrollState.value < scrollState.maxValue) {
+                withFrameNanos { frameNanos ->
+                    if (lastNanos != 0L) {
+                        val dt = (frameNanos - lastNanos) / 1_000_000_000f
+                        val clampedDt = dt.coerceAtMost(0.1f)
+                        scrollBy(pxPerSec * clampedDt)
+                    }
+                    lastNanos = frameNanos
+                }
             }
+        }
+        if (scrollState.value >= scrollState.maxValue) {
+            isAutoscrolling = false
         }
     }
 
@@ -203,14 +225,11 @@ fun StageModeScreen(
                                     color = Color(0xFFD4D4D8)
                                 )
                             } else {
-                                val displaySegments = remember(line.segments) {
-                                    line.segments.flatMap { it.splitIntoWordUnits() }
-                                }
                                 FlowRow(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.Start
                                 ) {
-                                    displaySegments.forEach { segment ->
+                                    line.displaySegments.forEach { segment ->
                                         StageChordSegmentView(
                                             segment = segment,
                                             isChordOnlyLine = hasAnyChords && !hasAnyLyrics,
@@ -287,6 +306,67 @@ fun StageModeScreen(
                         Icons.Default.SkipNext,
                         contentDescription = "Další píseň",
                         tint = if (currentIndex < songs.size - 1) Color.White else Color(0xFF52525B)
+                    )
+                }
+
+                // Speed controls
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(24.dp)
+                        .background(Color(0xFF3F3F46))
+                )
+
+                IconButton(
+                    onClick = {
+                        if (speed > 1) {
+                            val newSpeed = when {
+                                speed <= 1 -> 1
+                                speed <= 10 -> speed - 1
+                                else -> ((speed - 1) / 5) * 5
+                            }
+                            speed = newSpeed
+                            repository.updateSong(song.copy(autoscroll_speed = speed))
+                        }
+                    },
+                    enabled = speed > 1,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Remove,
+                        contentDescription = "Zpomalit",
+                        tint = if (speed > 1) Color.White else Color(0xFF52525B),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                Text(
+                    text = "${speed}px/s",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                )
+
+                IconButton(
+                    onClick = {
+                        if (speed < 60) {
+                            val newSpeed = when {
+                                speed < 10 -> speed + 1
+                                else -> (speed + 5).coerceAtMost(60)
+                            }
+                            speed = newSpeed
+                            repository.updateSong(song.copy(autoscroll_speed = speed))
+                        }
+                    },
+                    enabled = speed < 60,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Zrychlit",
+                        tint = if (speed < 60) Color.White else Color(0xFF52525B),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }

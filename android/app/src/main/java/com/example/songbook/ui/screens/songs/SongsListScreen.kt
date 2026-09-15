@@ -339,7 +339,7 @@ fun SongCardItem(
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.horizontalScroll(rememberScrollState())
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     song.tags.take(4).forEach { tag ->
                         Text(

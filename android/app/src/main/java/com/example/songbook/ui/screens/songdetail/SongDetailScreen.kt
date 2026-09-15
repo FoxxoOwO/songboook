@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -56,10 +57,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -116,22 +119,33 @@ fun SongDetailScreen(
     var semitones by remember { mutableIntStateOf(0) }
     var preferFlats by remember { mutableStateOf(false) }
     var capo by remember { mutableIntStateOf(song.capo) }
-    var autoscrollSpeed by remember { mutableIntStateOf(song.autoscroll_speed.coerceIn(5, 60)) }
+    var autoscrollSpeed by remember { mutableIntStateOf(song.autoscroll_speed.coerceIn(1, 60)) }
     var isAutoscrolling by remember { mutableStateOf(false) }
     var selectedChordForDetail by remember { mutableStateOf<String?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
 
-    // Autoscroll loop
-    LaunchedEffect(isAutoscrolling, autoscrollSpeed) {
-        while (isAutoscrolling) {
-            delay(50) // 20 updates per second
-            val pixelsPerStep = (autoscrollSpeed * 0.05f).toInt().coerceAtLeast(1)
-            scrollState.scrollTo((scrollState.value + pixelsPerStep).coerceAtMost(scrollState.maxValue))
-            if (scrollState.value >= scrollState.maxValue) {
-                isAutoscrolling = false
+    // Smooth per-frame autoscroll loop (60 / 120 FPS vsync synchronized)
+    val density = LocalDensity.current
+    LaunchedEffect(isAutoscrolling, autoscrollSpeed, density) {
+        if (!isAutoscrolling) return@LaunchedEffect
+        val pxPerSec = with(density) { (autoscrollSpeed * 1.6f).dp.toPx() }
+        var lastNanos = 0L
+        scrollState.scroll(MutatePriority.UserInput) {
+            while (isAutoscrolling && scrollState.value < scrollState.maxValue) {
+                withFrameNanos { frameNanos ->
+                    if (lastNanos != 0L) {
+                        val dt = (frameNanos - lastNanos) / 1_000_000_000f
+                        val clampedDt = dt.coerceAtMost(0.1f)
+                        scrollBy(pxPerSec * clampedDt)
+                    }
+                    lastNanos = frameNanos
+                }
             }
+        }
+        if (scrollState.value >= scrollState.maxValue) {
+            isAutoscrolling = false
         }
     }
 
@@ -331,15 +345,12 @@ fun SongDetailScreen(
                                         color = MaterialTheme.colorScheme.onBackground
                                     )
                                 } else {
-                                    val displaySegments = remember(line.segments) {
-                                        line.segments.flatMap { it.splitIntoWordUnits() }
-                                    }
                                     FlowRow(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.Start,
                                         verticalArrangement = Arrangement.Top
                                     ) {
-                                        displaySegments.forEach { segment ->
+                                        line.displaySegments.forEach { segment ->
                                             ChordLyricSegmentView(
                                                 segment = segment,
                                                 isChordOnlyLine = hasAnyChords && !hasAnyLyrics,
@@ -423,11 +434,17 @@ fun SongDetailScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         FilledTonalIconButton(
                             onClick = {
-                                if (autoscrollSpeed > 5) {
-                                    autoscrollSpeed -= 5
+                                if (autoscrollSpeed > 1) {
+                                    val newSpeed = when {
+                                        autoscrollSpeed <= 1 -> 1
+                                        autoscrollSpeed <= 10 -> autoscrollSpeed - 1
+                                        else -> ((autoscrollSpeed - 1) / 5) * 5
+                                    }
+                                    autoscrollSpeed = newSpeed
                                     repository.updateSong(song.copy(autoscroll_speed = autoscrollSpeed))
                                 }
                             },
+                            enabled = autoscrollSpeed > 1,
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(Icons.Default.Remove, contentDescription = "Zpomalit", modifier = Modifier.size(16.dp))
@@ -436,10 +453,15 @@ fun SongDetailScreen(
                         FilledTonalIconButton(
                             onClick = {
                                 if (autoscrollSpeed < 60) {
-                                    autoscrollSpeed += 5
+                                    val newSpeed = when {
+                                        autoscrollSpeed < 10 -> autoscrollSpeed + 1
+                                        else -> (autoscrollSpeed + 5).coerceAtMost(60)
+                                    }
+                                    autoscrollSpeed = newSpeed
                                     repository.updateSong(song.copy(autoscroll_speed = autoscrollSpeed))
                                 }
                             },
+                            enabled = autoscrollSpeed < 60,
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(Icons.Default.Add, contentDescription = "Zrychlit", modifier = Modifier.size(16.dp))

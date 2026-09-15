@@ -46,27 +46,36 @@ export const SongViewer: React.FC<SongViewerProps> = ({
   const [scrollSpeed, setScrollSpeed] = useState<number>(song.autoscroll_speed || 20);
   const scrollAnimRef = useRef<number | null>(null);
   const lastScrollTimeRef = useRef<number>(0);
+  const scrollAccumulatorRef = useRef<number>(0);
 
   useEffect(() => {
     setScrollSpeed(song.autoscroll_speed || 20);
     setCapoFret(song.capo || 0);
     setTransposeSemitones(0);
     setIsScrolling(false);
+    scrollAccumulatorRef.current = 0;
   }, [song]);
 
   useEffect(() => {
     if (!isScrolling) {
       if (scrollAnimRef.current) cancelAnimationFrame(scrollAnimRef.current);
+      scrollAccumulatorRef.current = 0;
       return;
     }
 
     const step = (timestamp: number) => {
       if (!lastScrollTimeRef.current) lastScrollTimeRef.current = timestamp;
-      const deltaTime = (timestamp - lastScrollTimeRef.current) / 1000;
+      const deltaTime = Math.min((timestamp - lastScrollTimeRef.current) / 1000, 0.1);
       lastScrollTimeRef.current = timestamp;
 
       const pxPerSec = scrollSpeed * 1.6;
-      window.scrollBy(0, pxPerSec * deltaTime);
+      scrollAccumulatorRef.current += pxPerSec * deltaTime;
+
+      if (scrollAccumulatorRef.current >= 1) {
+        const pixelsToScroll = Math.floor(scrollAccumulatorRef.current);
+        scrollAccumulatorRef.current -= pixelsToScroll;
+        window.scrollBy(0, pixelsToScroll);
+      }
 
       if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 5) {
         setIsScrolling(false);

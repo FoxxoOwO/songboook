@@ -43,17 +43,23 @@ fun Modifier.pinchToZoom(
 ): Modifier = this.pointerInput(Unit) {
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        var accumulatedZoom = 1f
         do {
             val event = awaitPointerEvent(PointerEventPass.Initial)
             val activePointers = event.changes.count { it.pressed }
             if (activePointers >= 2) {
                 val zoom = event.calculateZoom()
-                if (zoom != 1f) {
-                    onZoomChange(zoom)
+                accumulatedZoom *= zoom
+                if (abs(accumulatedZoom - 1f) >= 0.015f) {
+                    onZoomChange(accumulatedZoom)
+                    accumulatedZoom = 1f
                 }
                 event.changes.forEach { it.consume() }
             }
         } while (event.changes.any { it.pressed })
+        if (accumulatedZoom != 1f) {
+            onZoomChange(accumulatedZoom)
+        }
     }
 }
 
